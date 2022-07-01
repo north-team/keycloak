@@ -370,7 +370,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
                 throw new IdentityBrokerException("Mismatch between the subject in the id_token and the subject from the user_info endpoint");
             }
 
-            //identity.getContextData().put(BROKER_NONCE_PARAM, idToken.getOtherClaims().get(OIDCLoginProtocol.NONCE_PARAM));
+            identity.getContextData().put(BROKER_NONCE_PARAM, idToken.getOtherClaims().get(OIDCLoginProtocol.NONCE_PARAM));
             
             if (getConfig().isStoreToken()) {
                 if (tokenResponse.getExpiresIn() > 0) {
@@ -772,17 +772,17 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
             // no interacting with the brokered OP, likely doing token exchanges
             return;
         }
-        return;
-//        String nonce = (String) context.getContextData().get(BROKER_NONCE_PARAM);
-//
-//        if (nonce == null) {
-//            throw new IdentityBrokerException("OpenID Provider [" + getConfig().getProviderId() + "] did not return a nonce");
-//        }
-//
-//        String expectedNonce = authenticationSession.getClientNote(BROKER_NONCE_PARAM);
-//
-//        if (!nonce.equals(expectedNonce)) {
-//            throw new ErrorResponseException(OAuthErrorException.INVALID_TOKEN, "invalid nonce", Response.Status.BAD_REQUEST);
-//        }
+        String nonce = (String) context.getContextData().get(BROKER_NONCE_PARAM);
+
+        if (nonce == null) {
+            return;
+            //throw new IdentityBrokerException("OpenID Provider [" + getConfig().getProviderId() + "] did not return a nonce");
+        }
+
+        String expectedNonce = authenticationSession.getClientNote(BROKER_NONCE_PARAM);
+
+        if (!nonce.equals(expectedNonce)) {
+            throw new ErrorResponseException(OAuthErrorException.INVALID_TOKEN, "invalid nonce", Response.Status.BAD_REQUEST);
+        }
     }
 }
