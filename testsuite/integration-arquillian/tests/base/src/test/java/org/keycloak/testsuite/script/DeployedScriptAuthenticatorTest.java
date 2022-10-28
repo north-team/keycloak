@@ -85,6 +85,7 @@ public class DeployedScriptAuthenticatorTest extends AbstractFlowTest {
     @BeforeClass
     public static void verifyEnvironment() {
         ContainerAssume.assumeNotAuthServerUndertow();
+        ContainerAssume.assumeNotAuthServerQuarkus();
     }
 
     @Rule
@@ -121,9 +122,9 @@ public class DeployedScriptAuthenticatorTest extends AbstractFlowTest {
                 .user(okayUser);
     }
 
-    public void configureFlows() throws Exception {
+    public void configureFlows() {
         deployer.deploy(SCRIPT_DEPLOYMENT_NAME);
-        reconnectAdminClient();
+
         if (testContext.isInitialized()) {
             return;
         }
@@ -138,10 +139,10 @@ public class DeployedScriptAuthenticatorTest extends AbstractFlowTest {
                 .builtIn(false)
                 .build();
 
-        Response createFlowResponse = adminClient.realm(TEST_REALM_NAME).flows().createFlow(scriptBrowserFlow);
+        Response createFlowResponse = testRealm().flows().createFlow(scriptBrowserFlow);
         Assert.assertEquals(201, createFlowResponse.getStatus());
 
-        RealmRepresentation realm = adminClient.realm(TEST_REALM_NAME).toRepresentation();
+        RealmRepresentation realm = testRealm().toRepresentation();
         realm.setBrowserFlow(scriptFlow);
         realm.setDirectGrantFlow(scriptFlow);
         testRealm().update(realm);
@@ -174,34 +175,29 @@ public class DeployedScriptAuthenticatorTest extends AbstractFlowTest {
     }
 
     @After
-    public void onAfter() throws Exception {
+    public void onAfter() {
         deployer.undeploy(SCRIPT_DEPLOYMENT_NAME);
-        reconnectAdminClient();
     }
 
     /**
      * KEYCLOAK-3491
      */
     @Test
-    public void loginShouldWorkWithScriptAuthenticator() throws Exception {
+    public void loginShouldWorkWithScriptAuthenticator() {
         configureFlows();
 
         loginPage.open();
 
         loginPage.login("user", "password");
 
-        events.expectLogin().user(okayUser()).detail(Details.USERNAME, "user").assertEvent();
-    }
-
-    private UserRepresentation okayUser() {
-        return adminClient.realm(TEST_REALM_NAME).users().search("user", true).get(0);
+        events.expectLogin().user("user").detail(Details.USERNAME, "user").assertEvent();
     }
 
     /**
      * KEYCLOAK-3491
      */
     @Test
-    public void loginShouldFailWithScriptAuthenticator() throws Exception {
+    public void loginShouldFailWithScriptAuthenticator() {
         configureFlows();
 
         loginPage.open();

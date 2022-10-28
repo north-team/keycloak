@@ -19,6 +19,11 @@ package org.keycloak.services.resources.admin;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Set;
+
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.keycloak.models.KeycloakSession;
@@ -30,24 +35,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.stream.Stream;
 
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.NotFoundException;
+import javax.ws.rs.PATCH;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import org.keycloak.util.JsonSerialization;
-import org.keycloak.utils.StringUtil;
 
 public class RealmLocalizationResource {
     private final RealmModel realm;
@@ -83,8 +85,8 @@ public class RealmLocalizationResource {
     @POST
     @Path("{locale}")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
-    public void createOrUpdateRealmLocalizationTextsFromFile(@PathParam("locale") String locale,
-            MultipartFormDataInput input) {
+    public void patchRealmLocalizationTextsFromFile(@PathParam("locale") String locale, MultipartFormDataInput input)
+            throws IOException {
         this.auth.realm().requireManageRealm();
 
         Map<String, List<InputPart>> formDataMap = input.getFormDataMap();
@@ -96,19 +98,18 @@ public class RealmLocalizationResource {
             TypeReference<HashMap<String, String>> typeRef = new TypeReference<HashMap<String, String>>() {
             };
             Map<String, String> rep = JsonSerialization.readValue(inputStream, typeRef);
-            realm.createOrUpdateRealmLocalizationTexts(locale, rep);
+            realm.patchRealmLocalizationTexts(locale, rep);
         } catch (IOException e) {
             throw new BadRequestException("Could not read file.");
         }
     }
 
-    @POST
+    @PATCH
     @Path("{locale}")
     @Consumes(MediaType.APPLICATION_JSON)
-    public void createOrUpdateRealmLocalizationTexts(@PathParam("locale") String locale,
-            Map<String, String> localizationTexts) {
+    public void patchRealmLocalizationTexts(@PathParam("locale") String locale, Map<String, String> loclizationTexts) {
         this.auth.realm().requireManageRealm();
-        realm.createOrUpdateRealmLocalizationTexts(locale, localizationTexts);
+        realm.patchRealmLocalizationTexts(locale, loclizationTexts);
     }
 
     @Path("{locale}")
@@ -131,35 +132,28 @@ public class RealmLocalizationResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public Stream<String> getRealmLocalizationLocales() {
-        auth.requireAnyAdminRole();
+    public List<String> getRealmLocalizationLocales() {
+        this.auth.realm().requireViewRealm();
 
-        return realm.getRealmLocalizationTexts().keySet().stream().sorted();
+        List<String> realmLocalesList = new ArrayList<>(realm.getRealmLocalizationTexts().keySet());
+        Collections.sort(realmLocalesList);
+
+        return realmLocalesList;
     }
 
     @Path("{locale}")
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public Map<String, String> getRealmLocalizationTexts(@PathParam("locale") String locale,  @QueryParam("useRealmDefaultLocaleFallback") Boolean useFallback) {
-        auth.requireAnyAdminRole();
-
-        Map<String, String> realmLocalizationTexts = new HashMap<>();
-        if(useFallback != null && useFallback && StringUtil.isNotBlank(realm.getDefaultLocale())) {
-            realmLocalizationTexts.putAll(realm.getRealmLocalizationTextsByLocale(realm.getDefaultLocale()));
-        }
-
-        realmLocalizationTexts.putAll(realm.getRealmLocalizationTextsByLocale(locale));
-
-        return realmLocalizationTexts;
-
+    public Map<String, String> getRealmLocalizationTexts(@PathParam("locale") String locale) {
+        this.auth.realm().requireViewRealm();
+        return realm.getRealmLocalizationTextsByLocale(locale);
     }
 
     @Path("{locale}/{key}")
     @GET
     @Produces(MediaType.TEXT_PLAIN)
     public String getRealmLocalizationText(@PathParam("locale") String locale, @PathParam("key") String key) {
-        auth.requireAnyAdminRole();
-
+        this.auth.realm().requireViewRealm();
         String text = session.realms().getLocalizationTextsById(realm, locale, key);
         if (text != null) {
             return text;

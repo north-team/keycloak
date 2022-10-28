@@ -18,22 +18,11 @@ package org.keycloak.models.map.common;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreType;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.type.TypeFactory;
-import com.fasterxml.jackson.datatype.jdk8.StreamSerializer;
 import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 
 /**
  *
@@ -41,76 +30,33 @@ import java.util.stream.Stream;
  */
 public class Serialization {
 
-    public static final ObjectMapper MAPPER = new ObjectMapper()
-      .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-      .enable(SerializationFeature.INDENT_OUTPUT)
-      .setSerializationInclusion(JsonInclude.Include.NON_NULL)
-      .setVisibility(PropertyAccessor.ALL, Visibility.NONE)
-      .setVisibility(PropertyAccessor.FIELD, Visibility.ANY)
-      .activateDefaultTyping(new LaissezFaireSubTypeValidator() /* TODO - see javadoc */, ObjectMapper.DefaultTyping.NON_CONCRETE_AND_ARRAYS, JsonTypeInfo.As.PROPERTY)
-      .addMixIn(UpdatableEntity.class, IgnoreUpdatedMixIn.class)
-      .addMixIn(DeepCloner.class, IgnoredTypeMixIn.class)
-    ;
+    public static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public static final ConcurrentHashMap<Class<?>, ObjectReader> READERS = new ConcurrentHashMap<>();
-    public static final ConcurrentHashMap<Class<?>, ObjectWriter> WRITERS = new ConcurrentHashMap<>();
-
-    @JsonIgnoreType
-    public class IgnoredTypeMixIn {}
-
-    public abstract class IgnoreUpdatedMixIn {
-        @JsonIgnore public abstract boolean isUpdated();
-    }
+    abstract class IgnoreUpdatedMixIn { @JsonIgnore public abstract boolean isUpdated(); }
 
     static {
-        JavaType type = TypeFactory.unknownType();
-        JavaType streamType = MAPPER.getTypeFactory().constructParametricType(Stream.class, type);
-        SimpleModule module = new SimpleModule().addSerializer(new StreamSerializer(streamType, type));
-        MAPPER.registerModule(module);
+        MAPPER.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        MAPPER.enable(SerializationFeature.INDENT_OUTPUT);
+        MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        MAPPER.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
+        MAPPER.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
+
+        MAPPER.addMixIn(AbstractEntity.class, IgnoreUpdatedMixIn.class);
     }
 
 
-    public static <T> T from(T orig) {
+    public static <T extends AbstractEntity> T from(T orig) {
         if (orig == null) {
             return null;
         }
-        @SuppressWarnings("unchecked")
-        final Class<T> origClass = (Class<T>) orig.getClass();
-
-        // Naive solution but will do.
         try {
-            ObjectReader reader = READERS.computeIfAbsent(origClass, MAPPER::readerFor);
-            ObjectWriter writer = WRITERS.computeIfAbsent(origClass, MAPPER::writerFor);
-            final T res;
-            res = reader.readValue(writer.writeValueAsBytes(orig));
-
+            // Naive solution but will do.
+            @SuppressWarnings("unchecked")
+            final T res = MAPPER.readValue(MAPPER.writeValueAsBytes(orig), (Class<T>) orig.getClass());
             return res;
         } catch (IOException ex) {
             throw new IllegalStateException(ex);
         }
     }
 
-    public static <T> T from(T orig, T target) {
-        if (orig == null) {
-            return null;
-        }
-        @SuppressWarnings("unchecked")
-        final Class<T> origClass = (Class<T>) orig.getClass();
-
-        // Naive solution but will do.
-        try {
-            ObjectReader reader = MAPPER.readerForUpdating(target);
-            ObjectWriter writer = WRITERS.computeIfAbsent(origClass, MAPPER::writerFor);
-            final T res;
-            res = reader.readValue(writer.writeValueAsBytes(orig));
-
-            if (res != target) {
-                throw new IllegalStateException("Should clone into desired target");
-            }
-
-            return res;
-        } catch (IOException ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
 }

@@ -11,8 +11,6 @@ import org.keycloak.services.DefaultKeycloakSessionFactory;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import java.util.Set;
-
 /**
  * Tests for {@link FilesPlainTextVaultProviderFactory}.
  *
@@ -129,11 +127,6 @@ public class PlainTextVaultProviderFactoryTest {
 
         @Override
         public Config.Scope scope(String... scope) {
-            throw new UnsupportedOperationException("not implemented");
-        }
-
-        @Override
-        public Set<String> getPropertyNames() {
             throw new UnsupportedOperationException("not implemented");
         }
     }

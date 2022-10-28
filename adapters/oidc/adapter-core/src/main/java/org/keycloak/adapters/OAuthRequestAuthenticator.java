@@ -151,7 +151,7 @@ public class OAuthRequestAuthenticator {
             }
             KeycloakUriBuilder secureUrl = KeycloakUriBuilder.fromUri(url).scheme("https").port(-1);
             if (port != 443) secureUrl.port(port);
-            url = secureUrl.buildAsString();
+            url = secureUrl.build().toString();
         }
 
         String loginHint = getQueryParamValue("login_hint");
@@ -197,7 +197,7 @@ public class OAuthRequestAuthenticator {
         scope = TokenUtil.attachOIDCScope(scope);
         redirectUriBuilder.queryParam(OAuth2Constants.SCOPE, scope);
 
-        return redirectUriBuilder.buildAsString();
+        return redirectUriBuilder.build().toString();
     }
 
     protected int sslRedirectPort() {
@@ -385,7 +385,7 @@ public class OAuthRequestAuthenticator {
                 .replaceQueryParam(OAuth2Constants.CODE, null)
                 .replaceQueryParam(OAuth2Constants.STATE, null)
                 .replaceQueryParam(OAuth2Constants.SESSION_STATE, null);
-        return builder.buildAsString();
+        return builder.build().toString();
     }
     
     private String rewrittenRedirectUri(String originalUri) {

@@ -37,6 +37,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.keycloak.admin.client.resource.ClientResource;
+import org.keycloak.common.Profile;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.mappers.ScriptBasedOIDCProtocolMapper;
 import org.keycloak.representations.AccessToken;
@@ -44,6 +45,7 @@ import org.keycloak.representations.idm.ProtocolMapperRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.provider.ScriptProviderDescriptor;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
+import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.util.ContainerAssume;
 import org.keycloak.testsuite.util.OAuthClient;
@@ -72,21 +74,20 @@ public class DeployedScriptMapperTest extends AbstractTestRealmKeycloakTest {
     @BeforeClass
     public static void verifyEnvironment() {
         ContainerAssume.assumeNotAuthServerUndertow();
+        ContainerAssume.assumeNotAuthServerQuarkus();
     }
 
     @ArquillianResource
     private Deployer deployer;
 
     @Before
-    public void configureFlows() throws Exception {
+    public void configureFlows() {
         deployer.deploy(SCRIPT_DEPLOYMENT_NAME);
-        reconnectAdminClient();
     }
 
     @After
-    public void onAfter() throws Exception {
+    public void onAfter() {
         deployer.undeploy(SCRIPT_DEPLOYMENT_NAME);
-        reconnectAdminClient();
     }
 
     @Override

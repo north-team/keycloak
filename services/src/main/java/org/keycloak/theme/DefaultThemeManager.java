@@ -49,10 +49,12 @@ public class DefaultThemeManager implements ThemeManager {
     private final DefaultThemeManagerFactory factory;
     private final KeycloakSession session;
     private List<ThemeProvider> providers;
+    private String defaultTheme;
 
     public DefaultThemeManager(DefaultThemeManagerFactory factory, KeycloakSession session) {
         this.factory = factory;
         this.session = session;
+        this.defaultTheme = Config.scope("theme").get("default", Version.NAME.toLowerCase());
     }
 
     @Override
@@ -61,20 +63,42 @@ public class DefaultThemeManager implements ThemeManager {
         return getTheme(name, type);
     }
 
+    private String typeBasedDefault(Theme.Type type) {
+        if ((type == Theme.Type.ACCOUNT) && isAccount2Enabled()) {
+            return "keycloak.v2";
+        }
+        
+        return "keycloak";
+    }
+    
     @Override
     public Theme getTheme(String name, Theme.Type type) {
+        if (name == null) {
+            name = defaultTheme;
+        }
+
         Theme theme = factory.getCachedTheme(name, type);
         if (theme == null) {
             theme = loadTheme(name, type);
             if (theme == null) {
-                String defaultThemeName = session.getProvider(ThemeSelectorProvider.class).getDefaultThemeName(type);
-                theme = loadTheme(defaultThemeName, type);
+                theme = loadTheme(typeBasedDefault(type), type);
+                if (theme == null) {
+                    theme = loadTheme("base", type);
+                }
                 log.errorv("Failed to find {0} theme {1}, using built-in themes", type, name);
             } else {
                 theme = factory.addCachedTheme(name, type, theme);
             }
         }
-
+        
+        if (!isAccount2Enabled() && theme.getName().equals("keycloak.v2")) {
+            theme = loadTheme("keycloak", type);
+        }
+        
+        if (!isAccount2Enabled() && theme.getName().equals("rhsso.v2")) {
+            theme = loadTheme("rhsso", type);
+        }
+        
         return theme;
     }
     
@@ -99,10 +123,6 @@ public class DefaultThemeManager implements ThemeManager {
 
     private Theme loadTheme(String name, Theme.Type type) {
         Theme theme = findTheme(name, type);
-        if (theme == null) {
-            return null;
-        }
-
         List<Theme> themes = new LinkedList<>();
         themes.add(theme);
 

@@ -1,7 +1,7 @@
 package org.keycloak.testsuite.admin.partialexport;
 
+import java.util.Arrays;
 import org.junit.Test;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.MultivaluedHashMap;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ComponentExportRepresentation;
@@ -12,7 +12,6 @@ import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.ScopeMappingRepresentation;
 import org.keycloak.testsuite.Assert;
-import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.admin.AbstractAdminTest;
 
 import java.util.HashMap;
@@ -42,14 +41,15 @@ public class PartialExportTest extends AbstractAdminTest {
 
     @Test
     public void testExport() {
-        // re-enable as part of https://github.com/keycloak/keycloak/issues/14291
-        ProfileAssume.assumeFeatureDisabled(Profile.Feature.MAP_STORAGE);
 
         // exportGroupsAndRoles == false, exportClients == false
         RealmRepresentation rep = adminClient.realm(EXPORT_TEST_REALM).partialExport(false, false);
         Assert.assertNull("Users are null", rep.getUsers());
         Assert.assertNull("Default groups are empty", rep.getDefaultGroups());
         Assert.assertNull("Groups are empty", rep.getGroups());
+
+        Assert.assertNotNull("Default roles not empty", rep.getDefaultRoles());
+        checkDefaultRoles(rep.getDefaultRoles());
 
         Assert.assertNull("Realm and client roles are empty", rep.getRoles());
         Assert.assertNull("Clients are empty", rep.getClients());
@@ -64,6 +64,9 @@ public class PartialExportTest extends AbstractAdminTest {
         Assert.assertNull("Default groups are empty", rep.getDefaultGroups());
         Assert.assertNotNull("Groups not empty", rep.getGroups());
         checkGroups(rep.getGroups());
+
+        Assert.assertNotNull("Default roles not empty", rep.getDefaultRoles());
+        checkDefaultRoles(rep.getDefaultRoles());
 
         Assert.assertNotNull("Realm and client roles not empty", rep.getRoles());
         Assert.assertNotNull("Realm roles not empty", rep.getRoles().getRealm());
@@ -83,6 +86,8 @@ public class PartialExportTest extends AbstractAdminTest {
         checkServiceAccountRoles(rep.getUsers().get(0), false); // export but without roles
         Assert.assertNull("Default groups are empty", rep.getDefaultGroups());
         Assert.assertNull("Groups are empty", rep.getGroups());
+        Assert.assertNotNull("Default roles not empty", rep.getDefaultRoles());
+        checkDefaultRoles(rep.getDefaultRoles());
 
         Assert.assertNull("Realm and client roles are empty", rep.getRoles());
         Assert.assertNotNull("Clients not empty", rep.getClients());
@@ -102,6 +107,8 @@ public class PartialExportTest extends AbstractAdminTest {
         Assert.assertNotNull("Groups not empty", rep.getGroups());
         checkGroups(rep.getGroups());
 
+        Assert.assertNotNull("Default roles not empty", rep.getDefaultRoles());
+        checkDefaultRoles(rep.getDefaultRoles());
 
         Assert.assertNotNull("Realm and client roles not empty", rep.getRoles());
         Assert.assertNotNull("Realm roles not empty", rep.getRoles().getRealm());
@@ -144,9 +151,7 @@ public class PartialExportTest extends AbstractAdminTest {
 
         // Client secret
         for (ClientRepresentation client: rep.getClients()) {
-            if (Boolean.FALSE.equals(client.isPublicClient()) && Boolean.FALSE.equals(client.isBearerOnly())) {
-                Assert.assertEquals("Client secret masked", ComponentRepresentation.SECRET_VALUE, client.getSecret());
-            }
+            Assert.assertEquals("Client secret masked", ComponentRepresentation.SECRET_VALUE, client.getSecret());
         }
 
         // IdentityProvider clientSecret

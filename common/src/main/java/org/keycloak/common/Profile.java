@@ -19,14 +19,14 @@ package org.keycloak.common;
 
 import static org.keycloak.common.Profile.Type.DEPRECATED;
 
+import org.jboss.logging.Logger;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
-import org.jboss.logging.Logger;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -36,22 +36,85 @@ public class Profile {
 
     private static final Logger logger = Logger.getLogger(Profile.class);
 
+    public enum Type {
+        DEFAULT,
+        DISABLED_BY_DEFAULT,
+        PREVIEW,
+        EXPERIMENTAL,
+        DEPRECATED;
+    }
+    public enum Feature {
+        ACCOUNT2(Type.DEFAULT),
+        ACCOUNT_API(Type.DEFAULT),
+        ADMIN_FINE_GRAINED_AUTHZ(Type.PREVIEW),
+        DOCKER(Type.DISABLED_BY_DEFAULT),
+        IMPERSONATION(Type.DEFAULT),
+        OPENSHIFT_INTEGRATION(Type.PREVIEW),
+        SCRIPTS(Type.PREVIEW),
+        TOKEN_EXCHANGE(Type.PREVIEW),
+        UPLOAD_SCRIPTS(DEPRECATED),
+        WEB_AUTHN(Type.DEFAULT, Type.PREVIEW),
+        CLIENT_POLICIES(Type.PREVIEW);
+
+        private Type typeProject;
+        private Type typeProduct;
+
+        Feature(Type type) {
+            this(type, type);
+        }
+
+        Feature(Type typeProject, Type typeProduct) {
+            this.typeProject = typeProject;
+            this.typeProduct = typeProduct;
+        }
+
+        public Type getTypeProject() {
+            return typeProject;
+        }
+
+        public Type getTypeProduct() {
+            return typeProduct;
+        }
+
+        public boolean hasDifferentProductType() {
+            return typeProject != typeProduct;
+        }
+    }
+
+    private enum ProductValue {
+        KEYCLOAK,
+        RHSSO
+    }
+
+    private enum ProfileValue {
+        COMMUNITY,
+        PRODUCT,
+        PREVIEW
+    }
+
     private static Profile CURRENT;
+
+    private final ProductValue product;
+
     private final ProfileValue profile;
+
     private final Set<Feature> disabledFeatures = new HashSet<>();
     private final Set<Feature> previewFeatures = new HashSet<>();
     private final Set<Feature> experimentalFeatures = new HashSet<>();
     private final Set<Feature> deprecatedFeatures = new HashSet<>();
+
     private final PropertyResolver propertyResolver;
+    
     public Profile(PropertyResolver resolver) {
         this.propertyResolver = resolver;
         Config config = new Config();
 
+        product = "rh-sso".equals(Version.NAME) ? ProductValue.RHSSO : ProductValue.KEYCLOAK;
         profile = ProfileValue.valueOf(config.getProfile().toUpperCase());
 
         for (Feature f : Feature.values()) {
             Boolean enabled = config.getConfig(f);
-            Type type = f.getType();
+            Type type = product.equals(ProductValue.RHSSO) ? f.getTypeProduct() : f.getTypeProject();
 
             switch (type) {
                 case DEFAULT:
@@ -66,6 +129,11 @@ public class Profile {
                         disabledFeatures.add(f);
                     } else if (DEPRECATED.equals(type)) {
                         logger.warnf("Deprecated feature enabled: " + f.name().toLowerCase());
+                        if (Feature.UPLOAD_SCRIPTS.equals(f)) {
+                            previewFeatures.add(Feature.SCRIPTS);
+                            disabledFeatures.remove(Feature.SCRIPTS);
+                            logger.warnf("Preview feature enabled: " + Feature.SCRIPTS.name().toLowerCase());
+                        }
                     }
                     break;
                 case PREVIEW:
@@ -86,11 +154,6 @@ public class Profile {
                     break;
             }
         }
-
-        if ((!disabledFeatures.contains(Feature.ADMIN2) || !disabledFeatures.contains(Feature.ADMIN)) && disabledFeatures.contains(Feature.ADMIN_API)) {
-                throw new RuntimeException(String.format("Invalid value for feature: %s needs to be enabled because it is required by feature %s.",
-                        Feature.ADMIN_API, Arrays.asList(Feature.ADMIN, Feature.ADMIN2)));
-        }
     }
 
     private static Profile getInstance() {
@@ -100,18 +163,12 @@ public class Profile {
         return CURRENT;
     }
 
+    public static void init() {
+        CURRENT = new Profile(null);
+    }
+    
     public static void setInstance(Profile instance) {
         CURRENT = instance;
-    }
-
-    public static void init() {
-        PropertyResolver resolver = null;
-
-        if (CURRENT != null) {
-            resolver = CURRENT.propertyResolver;
-        }
-
-        CURRENT = new Profile(resolver);
     }
 
     public static String getName() {
@@ -136,81 +193,6 @@ public class Profile {
 
     public static boolean isFeatureEnabled(Feature feature) {
         return !getInstance().disabledFeatures.contains(feature);
-    }
-
-    public enum Type {
-        DEFAULT,
-        DISABLED_BY_DEFAULT,
-        PREVIEW,
-        EXPERIMENTAL,
-        DEPRECATED;
-    }
-
-    public enum Feature {
-        AUTHORIZATION("Authorization Service", Type.DEFAULT),
-        ACCOUNT2("New Account Management Console", Type.DEFAULT),
-        ACCOUNT_API("Account Management REST API", Type.DEFAULT),
-        ADMIN_FINE_GRAINED_AUTHZ("Fine-Grained Admin Permissions", Type.PREVIEW),
-        /**
-         * Controls the availability of the Admin REST-API.
-         */
-        ADMIN_API("Admin API", Type.DEFAULT),
-
-        /**
-         * Controls the availability of the legacy admin-console.
-         * Note that the admin-console requires the {@link #ADMIN_API} feature.
-         */
-        @Deprecated
-        ADMIN("Legacy Admin Console", Type.DEPRECATED),
-
-        /**
-         * Controls the availability of the admin-console.
-         * Note that the admin-console requires the {@link #ADMIN_API} feature.
-         */
-        ADMIN2("New Admin Console", Type.DEFAULT),
-        DOCKER("Docker Registry protocol", Type.DISABLED_BY_DEFAULT),
-        IMPERSONATION("Ability for admins to impersonate users", Type.DEFAULT),
-        OPENSHIFT_INTEGRATION("Extension to enable securing OpenShift", Type.PREVIEW),
-        SCRIPTS("Write custom authenticators using JavaScript", Type.PREVIEW),
-        TOKEN_EXCHANGE("Token Exchange Service", Type.PREVIEW),
-        WEB_AUTHN("W3C Web Authentication (WebAuthn)", Type.DEFAULT),
-        CLIENT_POLICIES("Client configuration policies", Type.DEFAULT),
-        CIBA("OpenID Connect Client Initiated Backchannel Authentication (CIBA)", Type.DEFAULT),
-        MAP_STORAGE("New store", Type.EXPERIMENTAL),
-        PAR("OAuth 2.0 Pushed Authorization Requests (PAR)", Type.DEFAULT),
-        DECLARATIVE_USER_PROFILE("Configure user profiles using a declarative style", Type.PREVIEW),
-        DYNAMIC_SCOPES("Dynamic OAuth 2.0 scopes", Type.EXPERIMENTAL),
-        CLIENT_SECRET_ROTATION("Client Secret Rotation", Type.PREVIEW),
-        STEP_UP_AUTHENTICATION("Step-up Authentication", Type.DEFAULT),
-        RECOVERY_CODES("Recovery codes", Type.PREVIEW),
-        UPDATE_EMAIL("Update Email Action", Type.PREVIEW),
-        JS_ADAPTER("Host keycloak.js and keycloak-authz.js through the Keycloak sever", Type.DEFAULT);
-
-
-        private final Type type;
-        private String label;
-
-        Feature(String label, Type type) {
-            this.label = label;
-            this.type = type;
-        }
-
-        public String getLabel() {
-            return label;
-        }
-
-        public Type getType() {
-            return type;
-        }
-    }
-
-    private enum ProfileValue {
-        DEFAULT,
-        PREVIEW
-    }
-
-    public interface PropertyResolver {
-        String resolve(String feature);
     }
 
     private class Config {
@@ -243,14 +225,10 @@ public class Profile {
 
             profile = properties.getProperty("profile");
             if (profile != null) {
-                if (profile.equals("community")) {
-                    profile = "default";
-                }
-
                 return profile;
             }
 
-            return ProfileValue.DEFAULT.name();
+            return Version.DEFAULT_PROFILE;
         }
 
         public Boolean getConfig(Feature feature) {
@@ -277,13 +255,17 @@ public class Profile {
             if (value != null) {
                 return value;
             }
-
+            
             if (propertyResolver != null) {
                 return propertyResolver.resolve(name);
             }
-
+            
             return null;
         }
+    }
+    
+    public interface PropertyResolver {
+        String resolve(String feature);
     }
 
 }

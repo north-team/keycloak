@@ -17,29 +17,20 @@
 
 package org.keycloak.testsuite.admin.realm;
 
-import com.google.common.collect.Sets;
 import org.apache.commons.io.IOUtils;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.EventType;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
 import org.keycloak.events.log.JBossLoggingEventListenerProviderFactory;
-import org.keycloak.models.CibaConfig;
 import org.keycloak.models.Constants;
-import org.keycloak.models.OAuth2DeviceConfig;
-import org.keycloak.models.OTPPolicy;
-import org.keycloak.models.ParConfig;
-import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.saml.SamlProtocol;
 import org.keycloak.representations.adapters.action.GlobalRequestResult;
@@ -54,13 +45,13 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.Assert;
 import org.keycloak.testsuite.AssertEvents;
-import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.admin.AbstractAdminTest;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.auth.page.AuthRealm;
 import org.keycloak.testsuite.client.KeycloakTestingClient;
 import org.keycloak.testsuite.events.TestEventsListenerProviderFactory;
-import org.keycloak.testsuite.model.StoreProvider;
 import org.keycloak.testsuite.runonserver.RunHelpers;
 import org.keycloak.testsuite.updaters.Creator;
 import org.keycloak.testsuite.util.AdminEventPaths;
@@ -76,24 +67,16 @@ import javax.ws.rs.BadRequestException;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
@@ -101,6 +84,7 @@ import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class RealmTest extends AbstractAdminTest {
 
     @Rule
@@ -194,30 +178,8 @@ public class RealmTest extends AbstractAdminTest {
 
         try {
             RealmRepresentation rep2 = adminClient.realm("attributes").toRepresentation();
-            if (rep2.getAttributes() != null) {
-                Arrays.asList(CibaConfig.CIBA_BACKCHANNEL_TOKEN_DELIVERY_MODE,
-                        CibaConfig.CIBA_EXPIRES_IN,
-                        CibaConfig.CIBA_INTERVAL,
-                        CibaConfig.CIBA_AUTH_REQUESTED_USER_HINT).stream().forEach(i -> rep2.getAttributes().remove(i));
-            }
 
-            Set<String> attributesKeys = rep2.getAttributes().keySet();
-
-            int expectedAttributesCount = 3;
-            final Set<String> expectedAttributes = Sets.newHashSet(
-                    OAuth2DeviceConfig.OAUTH2_DEVICE_CODE_LIFESPAN,
-                    OAuth2DeviceConfig.OAUTH2_DEVICE_POLLING_INTERVAL,
-                    ParConfig.PAR_REQUEST_URI_LIFESPAN
-            );
-
-            // This attribute is represented in Legacy store as attribute and for Map store as a field
-            if (!StoreProvider.getCurrentProvider().isMapStore()) {
-                expectedAttributes.add(OTPPolicy.REALM_REUSABLE_CODE_ATTRIBUTE);
-                expectedAttributesCount++;
-            }
-
-            assertThat(attributesKeys.size(), CoreMatchers.is(expectedAttributesCount));
-            assertThat(attributesKeys, CoreMatchers.is(expectedAttributes));
+            assertTrue("Attributes was expected to be empty, but was: " + String.join(", ", rep2.getAttributes().keySet()), rep2.getAttributes().isEmpty());
         } finally {
             adminClient.realm("attributes").remove();
         }
@@ -278,15 +240,12 @@ public class RealmTest extends AbstractAdminTest {
     @Test
     public void createRealmFromJson() {
         RealmRepresentation rep = loadJson(getClass().getResourceAsStream("/admin-test/testrealm.json"), RealmRepresentation.class);
-        try {
-            adminClient.realms().create(rep);
+        adminClient.realms().create(rep);
 
-            RealmRepresentation created = adminClient.realms().realm("admin-test-1").toRepresentation();
-            assertRealm(rep, created);
+        RealmRepresentation created = adminClient.realms().realm("admin-test-1").toRepresentation();
+        assertRealm(rep, created);
 
-        } finally {
-            adminClient.realms().realm("admin-test-1").remove();
-        }
+        adminClient.realms().realm("admin-test-1").remove();
     }
 
     //KEYCLOAK-6146
@@ -312,7 +271,6 @@ public class RealmTest extends AbstractAdminTest {
     @Test
     public void createRealmWithPasswordPolicyFromJsonWithValidPasswords() {
         RealmRepresentation rep = loadJson(getClass().getResourceAsStream("/import/testrealm-keycloak-6146.json"), RealmRepresentation.class);
-        rep.setId(KeycloakModelUtils.generateId());
         try (Creator<RealmResource> c = Creator.create(adminClient, rep)) {
             RealmRepresentation created = c.resource().toRepresentation();
             assertRealm(rep, created);
@@ -467,11 +425,7 @@ public class RealmTest extends AbstractAdminTest {
         assertEquals(Boolean.TRUE, rep.isRegistrationAllowed());
         assertEquals(Boolean.TRUE, rep.isRegistrationEmailAsUsername());
         assertEquals(Boolean.TRUE, rep.isEditUsernameAllowed());
-        if (ProfileAssume.isFeatureEnabled(Profile.Feature.AUTHORIZATION)) {
-            assertEquals(Boolean.TRUE, rep.isUserManagedAccessAllowed());
-        } else {
-            assertEquals(Boolean.FALSE, rep.isUserManagedAccessAllowed());
-        }
+        assertEquals(Boolean.TRUE, rep.isUserManagedAccessAllowed());
 
         // second change
         rep.setRegistrationAllowed(false);
@@ -577,12 +531,14 @@ public class RealmTest extends AbstractAdminTest {
         realm.roles().create(role);
         assertAdminEvents.assertEvent(realmId, OperationType.CREATE, AdminEventPaths.roleResourcePath("test"), role, ResourceType.REALM_ROLE);
 
-        role = realm.roles().get("test").toRepresentation();
-        assertNotNull(role);
+        assertNotNull(realm.roles().get("test").toRepresentation());
 
-        realm.roles().get(Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + REALM_NAME).addComposites(Collections.singletonList(role));
+        RealmRepresentation rep = realm.toRepresentation();
+        rep.setDefaultRoles(new LinkedList<String>());
+        rep.getDefaultRoles().add("test");
 
-        assertAdminEvents.assertEvent(realmId, OperationType.CREATE, AdminEventPaths.roleResourceCompositesPath(Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + REALM_NAME), Collections.singletonList(role), ResourceType.REALM_ROLE);
+        realm.update(rep);
+        assertAdminEvents.assertEvent(realmId, OperationType.UPDATE, Matchers.nullValue(String.class), rep, ResourceType.REALM);
 
         realm.roles().deleteRole("test");
         assertAdminEvents.assertEvent(realmId, OperationType.DELETE, AdminEventPaths.roleResourcePath("test"), ResourceType.REALM_ROLE);
@@ -621,9 +577,8 @@ public class RealmTest extends AbstractAdminTest {
 
         ClientRepresentation converted = realm.convertClientDescription(description);
         assertEquals("loadbalancer-9.siroe.com", converted.getClientId());
-        assertEquals(2, converted.getRedirectUris().size());
+        assertEquals(1, converted.getRedirectUris().size());
         assertEquals("https://LoadBalancer-9.siroe.com:3443/federation/Consumer/metaAlias/sp", converted.getRedirectUris().get(0));
-        assertEquals("https://LoadBalancer-9.siroe.com:3443/federation/Consumer/metaAlias/sp", converted.getRedirectUris().get(1));
     }
 
     public static void assertRealm(RealmRepresentation realm, RealmRepresentation storedRealm) {
@@ -687,6 +642,13 @@ public class RealmTest extends AbstractAdminTest {
 
         if (realm.getPasswordPolicy() != null) assertEquals(realm.getPasswordPolicy(), storedRealm.getPasswordPolicy());
 
+        if (realm.getDefaultRoles() != null) {
+            assertNotNull(storedRealm.getDefaultRoles());
+            for (String role : realm.getDefaultRoles()) {
+                assertTrue(storedRealm.getDefaultRoles().contains(role));
+            }
+        }
+
         if (realm.getSmtpServer() != null) {
             assertEquals(realm.getSmtpServer(), storedRealm.getSmtpServer());
         }
@@ -707,7 +669,6 @@ public class RealmTest extends AbstractAdminTest {
 
     @Test
     public void clearRealmCache() {
-        Assume.assumeTrue("Realm cache disabled.", isRealmCacheEnabled());
         RealmRepresentation realmRep = realm.toRepresentation();
         assertTrue(testingClient.testing().cache("realms").contains(realmRep.getId()));
 
@@ -719,7 +680,6 @@ public class RealmTest extends AbstractAdminTest {
 
     @Test
     public void clearUserCache() {
-        Assume.assumeTrue("User cache disabled.", isUserCacheEnabled());
         UserRepresentation user = new UserRepresentation();
         user.setUsername("clearcacheuser");
         Response response = realm.users().create(user);
@@ -858,51 +818,6 @@ public class RealmTest extends AbstractAdminTest {
         sessionStats = realm.getClientSessionStats();
 
         assertEquals(0, sessionStats.size());
-    }
-
-    @Test
-    // KEYCLOAK-17342
-    public void testDefaultSignatureAlgorithm() {
-        RealmRepresentation rep = new RealmRepresentation();
-        rep.setRealm("new-realm");
-
-        try {
-            adminClient.realms().create(rep);
-
-            assertEquals(Constants.DEFAULT_SIGNATURE_ALGORITHM, adminClient.realm("master").toRepresentation().getDefaultSignatureAlgorithm());
-            assertEquals(Constants.DEFAULT_SIGNATURE_ALGORITHM, adminClient.realm("new-realm").toRepresentation().getDefaultSignatureAlgorithm());
-        } finally {
-            adminClient.realms().realm(rep.getRealm()).remove();
-        }
-    }
-
-    @Test
-    public void testSupportedOTPApplications() {
-        RealmRepresentation rep = new RealmRepresentation();
-        rep.setRealm("new-realm");
-
-        try {
-            adminClient.realms().create(rep);
-
-            RealmResource realm = adminClient.realms().realm("new-realm");
-
-            rep = realm.toRepresentation();
-
-            List<String> supportedApplications = rep.getOtpSupportedApplications();
-            assertThat(supportedApplications, hasSize(2));
-            assertThat(supportedApplications, containsInAnyOrder("totpAppGoogleName", "totpAppFreeOTPName"));
-
-            rep.setOtpPolicyDigits(8);
-            realm.update(rep);
-
-            rep = realm.toRepresentation();
-
-            supportedApplications = rep.getOtpSupportedApplications();
-            assertThat(supportedApplications, hasSize(1));
-            assertThat(supportedApplications, containsInAnyOrder("totpAppFreeOTPName"));
-        } finally {
-            adminClient.realms().realm(rep.getRealm()).remove();
-        }
     }
 
     private void setupTestAppAndUser() {

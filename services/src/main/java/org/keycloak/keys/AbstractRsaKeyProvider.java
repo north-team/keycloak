@@ -19,8 +19,11 @@ package org.keycloak.keys;
 
 import org.keycloak.common.util.KeyUtils;
 import org.keycloak.component.ComponentModel;
-import org.keycloak.crypto.*;
-import org.keycloak.jose.jwe.JWEConstants;
+import org.keycloak.crypto.Algorithm;
+import org.keycloak.crypto.KeyStatus;
+import org.keycloak.crypto.KeyType;
+import org.keycloak.crypto.KeyUse;
+import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.models.RealmModel;
 
 import java.security.KeyPair;
@@ -45,9 +48,7 @@ public abstract class AbstractRsaKeyProvider implements KeyProvider {
     public AbstractRsaKeyProvider(RealmModel realm, ComponentModel model) {
         this.model = model;
         this.status = KeyStatus.from(model.get(Attributes.ACTIVE_KEY, true), model.get(Attributes.ENABLED_KEY, true));
-
-        String defaultAlgorithmKey = KeyUse.ENC.name().equals(model.get(Attributes.KEY_USE)) ? JWEConstants.RSA_OAEP : Algorithm.RS256;
-        this.algorithm = model.get(Attributes.ALGORITHM_KEY, defaultAlgorithmKey);
+        this.algorithm = model.get(Attributes.ALGORITHM_KEY, Algorithm.RS256);
 
         if (model.hasNote(KeyWrapper.class.getName())) {
             key = model.getNote(KeyWrapper.class.getName());
@@ -64,33 +65,20 @@ public abstract class AbstractRsaKeyProvider implements KeyProvider {
         return Stream.of(key);
     }
 
-    protected KeyWrapper createKeyWrapper(KeyPair keyPair, X509Certificate certificate, KeyUse keyUse) {
-        return createKeyWrapper(keyPair, certificate, Collections.emptyList(), keyUse);
-    }
-
-    protected KeyWrapper createKeyWrapper(KeyPair keyPair, X509Certificate certificate, List<X509Certificate> certificateChain,
-        KeyUse keyUse) {
+    protected KeyWrapper createKeyWrapper(KeyPair keyPair, X509Certificate certificate) {
         KeyWrapper key = new KeyWrapper();
 
         key.setProviderId(model.getId());
         key.setProviderPriority(model.get("priority", 0l));
 
         key.setKid(KeyUtils.createKeyId(keyPair.getPublic()));
-        key.setUse(keyUse == null ? KeyUse.SIG : keyUse);
+        key.setUse(KeyUse.SIG);
         key.setType(KeyType.RSA);
         key.setAlgorithm(algorithm);
         key.setStatus(status);
         key.setPrivateKey(keyPair.getPrivate());
         key.setPublicKey(keyPair.getPublic());
         key.setCertificate(certificate);
-
-        if (!certificateChain.isEmpty()) {
-            if (certificate != null && !certificate.equals(certificateChain.get(0))) {
-                // just in case the chain does not contain the end-user certificate
-                certificateChain.add(0, certificate);
-            }
-            key.setCertificateChain(certificateChain);
-        }
 
         return key;
     }

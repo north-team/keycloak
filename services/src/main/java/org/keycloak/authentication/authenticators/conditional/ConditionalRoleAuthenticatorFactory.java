@@ -5,15 +5,25 @@ import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationExecutionModel.Requirement;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.ProviderConfigProperty;
+import org.keycloak.provider.ProviderConfigurationBuilder;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class ConditionalRoleAuthenticatorFactory implements ConditionalAuthenticatorFactory {
     public static final String PROVIDER_ID = "conditional-user-role";
+    protected static final String CONDITIONAL_USER_ROLE = "condUserRole";
 
-    public static final String CONDITIONAL_USER_ROLE = "condUserRole";
-    public static final String CONF_NEGATE = "negate";
+    private static List<ProviderConfigProperty> commonConfig;
+
+    static {
+        commonConfig = Collections.unmodifiableList(ProviderConfigurationBuilder.create()
+            .property().name(CONDITIONAL_USER_ROLE).label("User role")
+            .helpText("Role the user should have to execute this flow. Click 'Select Role' button to browse roles, or just type it in the textbox. To reference a client role the syntax is clientname.clientrole, i.e. myclient.myrole")
+            .type(ProviderConfigProperty.ROLE_TYPE).add()
+            .build()
+        );
+    }
 
     @Override
     public void init(Scope config) {
@@ -41,13 +51,17 @@ public class ConditionalRoleAuthenticatorFactory implements ConditionalAuthentic
     }
 
     @Override
+    public String getReferenceCategory() {
+        return "condition";
+    }
+
+    @Override
     public boolean isConfigurable() {
         return true;
     }
 
     private static final Requirement[] REQUIREMENT_CHOICES = {
-            AuthenticationExecutionModel.Requirement.REQUIRED,
-            AuthenticationExecutionModel.Requirement.DISABLED
+        AuthenticationExecutionModel.Requirement.REQUIRED, AuthenticationExecutionModel.Requirement.DISABLED
     };
 
     @Override
@@ -67,19 +81,7 @@ public class ConditionalRoleAuthenticatorFactory implements ConditionalAuthentic
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
-        ProviderConfigProperty role = new ProviderConfigProperty();
-        role.setType(ProviderConfigProperty.ROLE_TYPE);
-        role.setName(CONDITIONAL_USER_ROLE);
-        role.setLabel("User role");
-        role.setHelpText("Role the user should have to execute this flow. Click 'Select Role' button to browse roles, or just type it in the textbox. To reference a client role the syntax is clientname.clientrole, i.e. myclient.myrole");
-
-        ProviderConfigProperty negateOutput = new ProviderConfigProperty();
-        negateOutput.setType(ProviderConfigProperty.BOOLEAN_TYPE);
-        negateOutput.setName(CONF_NEGATE);
-        negateOutput.setLabel("Negate output");
-        negateOutput.setHelpText("Apply a NOT to the check result. When this is true, then the condition will evaluate to true just if user does NOT have the specified role. When this is false, the condition will evaluate to true just if user has the specified role");
-
-        return Arrays.asList(role, negateOutput);
+        return commonConfig;
     }
 
     @Override

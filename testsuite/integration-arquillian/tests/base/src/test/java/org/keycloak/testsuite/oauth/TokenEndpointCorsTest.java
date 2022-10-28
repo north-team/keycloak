@@ -7,6 +7,7 @@ import org.keycloak.OAuth2Constants;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.AssertEvents;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.util.ClientBuilder;
 import org.keycloak.testsuite.util.OAuthClient;
 
@@ -19,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
 /**
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
@@ -55,11 +57,11 @@ public class TokenEndpointCorsTest extends AbstractKeycloakTest {
     }
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void accessTokenCorsRequest() throws Exception {
         oauth.realm("test");
         oauth.clientId("test-app2");
         oauth.redirectUri(VALID_CORS_URL + "/realms/master/app");
-        oauth.postLogoutRedirectUri(VALID_CORS_URL + "/realms/master/app");
 
         oauth.doLogin("test-user@localhost", "password");
 
@@ -85,7 +87,7 @@ public class TokenEndpointCorsTest extends AbstractKeycloakTest {
         oauth.origin(VALID_CORS_URL);
 
         // No session
-        oauth.idTokenHint(response.getIdToken()).openLogout();
+        oauth.openLogout();
         response = oauth.doRefreshTokenRequest(response.getRefreshToken(), null);
         assertEquals(400, response.getStatusCode());
         assertCors(response);
@@ -110,29 +112,6 @@ public class TokenEndpointCorsTest extends AbstractKeycloakTest {
 
         assertEquals(401, response.getStatusCode());
         assertCors(response);
-    }
-
-    @Test
-    public void accessTokenWithConfidentialClientCorsRequest() throws Exception {
-        oauth.realm("test");
-        oauth.clientId("direct-grant");
-        oauth.origin(VALID_CORS_URL);
-
-        // Successful token request with correct origin - cors should work
-        OAuthClient.AccessTokenResponse response = oauth.doGrantAccessTokenRequest("password", "test-user@localhost", "password");
-        assertEquals(200, response.getStatusCode());
-        assertCors(response);
-
-        // Invalid client authentication with correct origin - cors should work
-        response = oauth.doGrantAccessTokenRequest("invalid", "test-user@localhost", "password");
-        assertEquals(401, response.getStatusCode());
-        assertCors(response);
-
-        // Successful token request with bad origin - cors should NOT work
-        oauth.origin(INVALID_CORS_URL);
-        response = oauth.doGrantAccessTokenRequest("password", "test-user@localhost", "password");
-        assertEquals(200, response.getStatusCode());
-        assertNotCors(response);
     }
 
     private static void assertCors(OAuthClient.AccessTokenResponse response) {

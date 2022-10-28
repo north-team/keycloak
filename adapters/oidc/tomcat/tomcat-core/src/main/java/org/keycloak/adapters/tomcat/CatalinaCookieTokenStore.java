@@ -43,11 +43,11 @@ public class CatalinaCookieTokenStore implements AdapterTokenStore {
     private Request request;
     private HttpFacade facade;
     private KeycloakDeployment deployment;
-    private PrincipalFactory principalFactory;
+    private GenericPrincipalFactory principalFactory;
 
     private KeycloakPrincipal<RefreshableKeycloakSecurityContext> authenticatedPrincipal;
 
-    public CatalinaCookieTokenStore(Request request, HttpFacade facade, KeycloakDeployment deployment, PrincipalFactory principalFactory) {
+    public CatalinaCookieTokenStore(Request request, HttpFacade facade, KeycloakDeployment deployment, GenericPrincipalFactory principalFactory) {
         this.request = request;
         this.facade = facade;
         this.deployment = deployment;

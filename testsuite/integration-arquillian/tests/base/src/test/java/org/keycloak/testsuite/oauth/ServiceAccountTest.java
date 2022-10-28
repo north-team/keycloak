@@ -21,11 +21,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.authentication.authenticators.client.ClientIdAndSecretAuthenticator;
 import org.keycloak.common.constants.ServiceAccountConstants;
@@ -40,7 +42,6 @@ import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.mappers.SHA256PairwiseSubMapper;
 import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.RefreshToken;
-import org.keycloak.representations.UserInfo;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.ProtocolMapperRepresentation;
@@ -49,26 +50,29 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.client.resources.TestApplicationResourceUrls;
 import org.keycloak.testsuite.util.ClientBuilder;
 import org.keycloak.testsuite.util.ClientManager;
 import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.RealmBuilder;
 import org.keycloak.testsuite.util.TokenSignatureUtil;
 import org.keycloak.testsuite.util.UserBuilder;
+import org.keycloak.testsuite.util.WaitUtils;
 
-import javax.ws.rs.ClientErrorException;
-import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+
+import javax.ws.rs.ClientErrorException;
+import javax.ws.rs.core.Response;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -124,15 +128,6 @@ public class ServiceAccountTest extends AbstractKeycloakTest {
                 .build();
 
         realm.client(disabledApp);
-
-        ClientRepresentation secretsWithSpecialCharacterClient = ClientBuilder.create()
-            .id(KeycloakModelUtils.generateId())
-            .clientId("service-account-cl-special-secrets")
-            .secret("secret/with=special?character")
-            .serviceAccountsEnabled(true)
-            .build();
-
-        realm.client(secretsWithSpecialCharacterClient);
 
         UserBuilder defaultUser = UserBuilder.create()
                 .id(KeycloakModelUtils.generateId())
@@ -341,13 +336,13 @@ public class ServiceAccountTest extends AbstractKeycloakTest {
 
         representation.setCredentials(Arrays.asList(password));
 
-        this.expectedException.expect(Matchers.allOf(Matchers.instanceOf(ClientErrorException.class),
+        this.expectedException.expect(Matchers.allOf(Matchers.instanceOf(ClientErrorException.class), 
                 Matchers.hasProperty("response", Matchers.hasProperty("status", Matchers.is(400)))));
         this.expectedException.reportMissingExceptionWithMessage("Should fail, should not be possible to manage credentials for service accounts");
 
         serviceAccount.update(representation);
     }
-
+    
     /**
      * See KEYCLOAK-9551
      */
@@ -493,44 +488,5 @@ public class ServiceAccountTest extends AbstractKeycloakTest {
         assertEquals(accessToken.getSessionState(), refreshedRefreshToken.getSessionState());
 
         events.expectRefresh(refreshToken.getId(), refreshToken.getSessionState()).user(userId).client("service-account-cl-refresh-on").assertEvent();
-    }
-
-    @Test
-    public void userInfoForServiceAccountWithoutRefreshTokenImpl() throws Exception {
-        oauth.clientId("service-account-cl");
-        OAuthClient.AccessTokenResponse response = oauth.doClientCredentialsGrantAccessTokenRequest("secret1");
-        assertEquals(200, response.getStatusCode());
-        assertNull(response.getRefreshToken());
-
-        UserInfo info = oauth.doUserInfoRequest(response.getAccessToken());
-        assertEquals(200, response.getStatusCode());
-        assertEquals("service-account-service-account-cl", info.getPreferredUsername());
-    }
-
-    @Test
-    public void userInfoForServiceAccountWithRefreshTokenImpl() throws Exception {
-        oauth.clientId("service-account-cl-refresh-on");
-        OAuthClient.AccessTokenResponse response = oauth.doClientCredentialsGrantAccessTokenRequest("secret1");
-        assertEquals(200, response.getStatusCode());
-        assertNotNull(response.getRefreshToken());
-
-        UserInfo info = oauth.doUserInfoRequest(response.getAccessToken());
-        assertEquals(200, response.getStatusCode());
-        assertEquals("service-account-service-account-cl-refresh-on", info.getPreferredUsername());
-
-        HttpResponse logoutResponse = oauth.doLogout(response.getRefreshToken(), "secret1");
-        assertEquals(204, logoutResponse.getStatusLine().getStatusCode());
-    }
-
-    /**
-     *  See KEYCLOAK-18704
-     */
-    @Test
-    public void clientCredentialsAuthSuccessWithUrlEncodedSpecialCharactersSecret() throws Exception {
-        oauth.clientId("service-account-cl-special-secrets");
-
-        OAuthClient.AccessTokenResponse response = oauth.doClientCredentialsGrantAccessTokenRequest("secret/with=special?character");
-
-        assertEquals(200, response.getStatusCode());
     }
 }

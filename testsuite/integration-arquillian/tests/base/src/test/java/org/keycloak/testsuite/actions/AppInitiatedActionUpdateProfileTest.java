@@ -37,9 +37,8 @@ import org.keycloak.testsuite.util.UserBuilder;
  */
 public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedActionTest {
 
-    @Override
-    public String getAiaAction() {
-        return UserModel.RequiredAction.UPDATE_PROFILE.name();
+    public AppInitiatedActionUpdateProfileTest() {
+        super(UserModel.RequiredAction.UPDATE_PROFILE.name());
     }
     
     @Page
@@ -47,10 +46,6 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
     @Page
     protected ErrorPage errorPage;
-
-    protected boolean isDynamicForm() {
-        return false;
-    }
     
     @Override
     public void configureTestRealm(RealmRepresentation testRealm) {
@@ -85,15 +80,13 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
         
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("test-user@localhost").firstName("New first").lastName("New last").email("new@email.com").submit();
+        updateProfilePage.update("New first", "New last", "new@email.com", "test-user@localhost");
 
-        events.expectRequiredAction(EventType.UPDATE_PROFILE).detail(Details.PREVIOUS_FIRST_NAME, "Tom").detail(Details.UPDATED_FIRST_NAME, "New first")
-                .detail(Details.PREVIOUS_LAST_NAME, "Brady").detail(Details.UPDATED_LAST_NAME, "New last")
-                .detail(Details.PREVIOUS_EMAIL, "test-user@localhost").detail(Details.UPDATED_EMAIL, "new@email.com")
-                .assertEvent();
+        events.expectRequiredAction(EventType.UPDATE_EMAIL).detail(Details.PREVIOUS_EMAIL, "test-user@localhost").detail(Details.UPDATED_EMAIL, "new@email.com").assertEvent();
+        events.expectRequiredAction(EventType.UPDATE_PROFILE).assertEvent();
         events.expectLogin().assertEvent();
 
-        assertKcActionStatus(SUCCESS);
+        assertKcActionStatus("success");
 
         // assert user is really updated in persistent store
         UserRepresentation user = ActionUtil.findUserWithAdminClient(adminClient, "test-user@localhost");
@@ -115,16 +108,13 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("test-user@localhost").firstName("New first").lastName("New last").email("new@email.com").submit();
+        updateProfilePage.update("New first", "New last", "new@email.com", "test-user@localhost");
 
         events.expectLogin().assertEvent();
-        events.expectRequiredAction(EventType.UPDATE_PROFILE).detail(Details.PREVIOUS_FIRST_NAME, "Tom").detail(Details.UPDATED_FIRST_NAME, "New first")
-                .detail(Details.PREVIOUS_LAST_NAME, "Brady").detail(Details.UPDATED_LAST_NAME, "New last")
-                .detail(Details.PREVIOUS_EMAIL, "test-user@localhost").detail(Details.UPDATED_EMAIL, "new@email.com")
-                .assertEvent();
-        events.expectLogin().assertEvent();
+        events.expectRequiredAction(EventType.UPDATE_EMAIL).detail(Details.PREVIOUS_EMAIL, "test-user@localhost").detail(Details.UPDATED_EMAIL, "new@email.com").assertEvent();
+        events.expectRequiredAction(EventType.UPDATE_PROFILE).assertEvent();
 
-        assertKcActionStatus(SUCCESS);
+        assertKcActionStatus("success");
 
         // assert user is really updated in persistent store
         UserRepresentation user = ActionUtil.findUserWithAdminClient(adminClient, "test-user@localhost");
@@ -143,7 +133,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
         updateProfilePage.assertCurrent();
         updateProfilePage.cancel();
 
-        assertKcActionStatus(CANCELLED);
+        assertKcActionStatus("cancelled");
 
         
         // assert nothing was updated in persistent store
@@ -165,20 +155,17 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("new").firstName("New first").lastName("New last").email("john-doh@localhost").submit();
+        updateProfilePage.update("New first", "New last", "john-doh@localhost", "new");
 
         events.expectLogin()
                 .event(EventType.UPDATE_PROFILE)
-                .detail(Details.PREVIOUS_FIRST_NAME, "John")
-                .detail(Details.UPDATED_FIRST_NAME, "New first")
-                .detail(Details.PREVIOUS_LAST_NAME, "Doh")
-                .detail(Details.UPDATED_LAST_NAME, "New last")
                 .detail(Details.USERNAME, "john-doh@localhost")
-                .user(userId).session(Matchers.nullValue(String.class))
+                .user(userId)
+                .session(Matchers.nullValue(String.class))
                 .removeDetail(Details.CONSENT)
                 .assertEvent();
 
-        assertKcActionStatus(SUCCESS);
+        assertKcActionStatus("success");
 
         events.expectLogin().detail(Details.USERNAME, "john-doh@localhost").user(userId).assertEvent();
 
@@ -199,7 +186,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("new").firstName("").lastName("New last").email("new@email.com").submit();
+        updateProfilePage.update("", "New last", "new@email.com", "new");
 
         updateProfilePage.assertCurrent();
 
@@ -208,10 +195,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
         Assert.assertEquals("New last", updateProfilePage.getLastName());
         Assert.assertEquals("new@email.com", updateProfilePage.getEmail());
 
-        if(isDynamicForm())
-            Assert.assertEquals("Please specify this field.", updateProfilePage.getInputErrors().getFirstNameError());
-        else
-            Assert.assertEquals("Please specify first name.", updateProfilePage.getInputErrors().getFirstNameError());
+        Assert.assertEquals("Please specify first name.", updateProfilePage.getInputErrors().getFirstNameError());
 
         events.assertEmpty();
     }
@@ -224,7 +208,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("new").firstName("New first").lastName("").email("new@email.com").submit();
+        updateProfilePage.update("New first", "", "new@email.com", "new");
 
         updateProfilePage.assertCurrent();
 
@@ -233,10 +217,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
         Assert.assertEquals("", updateProfilePage.getLastName());
         Assert.assertEquals("new@email.com", updateProfilePage.getEmail());
 
-        if(isDynamicForm())
-            Assert.assertEquals("Please specify this field.", updateProfilePage.getInputErrors().getLastNameError());
-        else
-            Assert.assertEquals("Please specify last name.", updateProfilePage.getInputErrors().getLastNameError());
+        Assert.assertEquals("Please specify last name.", updateProfilePage.getInputErrors().getLastNameError());
 
         events.assertEmpty();
     }
@@ -249,7 +230,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("new").firstName("New first").lastName("New last").email("").submit();
+        updateProfilePage.update("New first", "New last", "", "new");
 
         updateProfilePage.assertCurrent();
 
@@ -271,7 +252,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("invalid").firstName("New first").lastName("New last").email("invalidemail").submit();
+        updateProfilePage.update("New first", "New last", "invalidemail", "invalid");
 
         updateProfilePage.assertCurrent();
 
@@ -293,7 +274,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("").firstName("New first").lastName("New last").email("new@email.com").submit();
+        updateProfilePage.update("New first", "New last", "new@email.com", "");
 
         updateProfilePage.assertCurrent();
 
@@ -316,7 +297,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("test-user@localhost").firstName("New first").lastName("New last").email("new@email.com").submit();
+        updateProfilePage.update("New first", "New last", "new@email.com", "test-user@localhost");
 
         updateProfilePage.assertCurrent();
 
@@ -339,7 +320,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
 
         updateProfilePage.assertCurrent();
 
-        updateProfilePage.prepareUpdate().username("test-user@localhost").firstName("New first").lastName("New last").email("keycloak-user@localhost").submit();
+        updateProfilePage.update("New first", "New last", "keycloak-user@localhost", "test-user@localhost");
 
         updateProfilePage.assertCurrent();
 
@@ -363,7 +344,7 @@ public class AppInitiatedActionUpdateProfileTest extends AbstractAppInitiatedAct
         // Expire cookies and assert the page with "back to application" link present
         driver.manage().deleteAllCookies();
 
-        updateProfilePage.prepareUpdate().username("test-user@localhost").firstName("New first").lastName("New last").email("keycloak-user@localhost").submit();
+        updateProfilePage.update("New first", "New last", "keycloak-user@localhost", "test-user@localhost");
         errorPage.assertCurrent();
 
         String backToAppLink = errorPage.getBackToApplicationLink();

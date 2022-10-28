@@ -27,7 +27,6 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import java.util.List;
 import java.util.Set;
@@ -63,14 +62,6 @@ public interface RoleByIdResource {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     Set<RoleRepresentation> getRoleComposites(@PathParam("role-id") String id);
-
-    @Path("{role-id}/composites")
-    @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    Set<RoleRepresentation> searchRoleComposites(@PathParam("role-id") String id,
-                                                 @QueryParam("search") String search,
-                                                 @QueryParam("first") Integer first,
-                                                 @QueryParam("max") Integer max);
 
     @Path("{role-id}/composites/realm")
     @GET

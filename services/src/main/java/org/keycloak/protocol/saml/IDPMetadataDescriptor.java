@@ -18,9 +18,9 @@
 package org.keycloak.protocol.saml;
 
 import org.keycloak.dom.saml.v2.metadata.EndpointType;
+import org.keycloak.dom.saml.v2.metadata.EntitiesDescriptorType;
 import org.keycloak.dom.saml.v2.metadata.EntityDescriptorType;
 import org.keycloak.dom.saml.v2.metadata.IDPSSODescriptorType;
-import org.keycloak.dom.saml.v2.metadata.IndexedEndpointType;
 import org.keycloak.dom.saml.v2.metadata.KeyDescriptorType;
 import org.keycloak.dom.saml.v2.metadata.KeyTypes;
 
@@ -38,7 +38,6 @@ import org.keycloak.saml.common.util.StaxUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
-import static org.keycloak.saml.common.constants.JBossSAMLURIConstants.SAML_HTTP_ARTIFACT_BINDING;
 import static org.keycloak.saml.common.constants.JBossSAMLURIConstants.SAML_HTTP_POST_BINDING;
 import static org.keycloak.saml.common.constants.JBossSAMLURIConstants.SAML_HTTP_REDIRECT_BINDING;
 import static org.keycloak.saml.common.constants.JBossSAMLURIConstants.SAML_SOAP_BINDING;
@@ -55,13 +54,16 @@ import static org.keycloak.saml.common.constants.JBossSAMLURIConstants.PROTOCOL_
 public class IDPMetadataDescriptor {
 
     public static String getIDPDescriptor(URI loginPostEndpoint, URI loginRedirectEndpoint, URI logoutEndpoint,
-        URI artifactResolutionService, String entityId, boolean wantAuthnRequestsSigned, List<Element> signingCerts)
+        String entityId, boolean wantAuthnRequestsSigned, List<Element> signingCerts)
         throws ProcessingException
     {
       
         StringWriter sw = new StringWriter();
         XMLStreamWriter writer = StaxUtil.getXMLStreamWriter(sw);
         SAMLMetadataWriter metadataWriter = new SAMLMetadataWriter(writer);
+
+        EntitiesDescriptorType entitiesDescriptor = new EntitiesDescriptorType();
+        entitiesDescriptor.setName("urn:keycloak");
 
         EntityDescriptorType entityDescriptor = new EntityDescriptorType(entityId);
 
@@ -74,13 +76,9 @@ public class IDPMetadataDescriptor {
 
         spIDPDescriptor.addSingleLogoutService(new EndpointType(SAML_HTTP_POST_BINDING.getUri(), logoutEndpoint));
         spIDPDescriptor.addSingleLogoutService(new EndpointType(SAML_HTTP_REDIRECT_BINDING.getUri(), logoutEndpoint));
-        spIDPDescriptor.addSingleLogoutService(new EndpointType(SAML_HTTP_ARTIFACT_BINDING.getUri(), logoutEndpoint));
         spIDPDescriptor.addSingleSignOnService(new EndpointType(SAML_HTTP_POST_BINDING.getUri(), loginPostEndpoint));
         spIDPDescriptor.addSingleSignOnService(new EndpointType(SAML_HTTP_REDIRECT_BINDING.getUri(), loginRedirectEndpoint));
         spIDPDescriptor.addSingleSignOnService(new EndpointType(SAML_SOAP_BINDING.getUri(), loginPostEndpoint));
-        spIDPDescriptor.addSingleSignOnService(new EndpointType(SAML_HTTP_ARTIFACT_BINDING.getUri(), loginPostEndpoint));
-
-        spIDPDescriptor.addArtifactResolutionService(new IndexedEndpointType(SAML_SOAP_BINDING.getUri(), artifactResolutionService));
 
         if (wantAuthnRequestsSigned && signingCerts != null) {
             for (Element key: signingCerts)
@@ -94,7 +92,9 @@ public class IDPMetadataDescriptor {
 
         entityDescriptor.addChoiceType(new EntityDescriptorType.EDTChoiceType(Arrays.asList(new EntityDescriptorType.EDTDescriptorChoiceType(spIDPDescriptor))));
       
-        metadataWriter.writeEntityDescriptor(entityDescriptor);
+        entitiesDescriptor.addEntityDescriptor(entityDescriptor);
+
+        metadataWriter.writeEntitiesDescriptor(entitiesDescriptor);
 
         return sw.toString();
     }

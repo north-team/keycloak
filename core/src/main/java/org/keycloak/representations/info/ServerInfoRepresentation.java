@@ -34,8 +34,6 @@ public class ServerInfoRepresentation {
     private MemoryInfoRepresentation memoryInfo;
     private ProfileInfoRepresentation profileInfo;
 
-    private CryptoInfoRepresentation cryptoInfo;
-
     private Map<String, List<ThemeInfoRepresentation>> themes;
 
     private List<Map<String, String>> socialProviders;
@@ -75,14 +73,6 @@ public class ServerInfoRepresentation {
 
     public void setProfileInfo(ProfileInfoRepresentation profileInfo) {
         this.profileInfo = profileInfo;
-    }
-
-    public CryptoInfoRepresentation getCryptoInfo() {
-        return cryptoInfo;
-    }
-
-    public void setCryptoInfo(CryptoInfoRepresentation cryptoInfo) {
-        this.cryptoInfo = cryptoInfo;
     }
 
     public Map<String, List<ThemeInfoRepresentation>> getThemes() {

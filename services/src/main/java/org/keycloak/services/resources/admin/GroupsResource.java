@@ -19,7 +19,6 @@ package org.keycloak.services.resources.admin;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import javax.ws.rs.NotFoundException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
-import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.GroupModel;
@@ -30,7 +29,6 @@ import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.services.ErrorResponse;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
-import org.keycloak.utils.SearchQueryUtils;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
@@ -76,18 +74,13 @@ public class GroupsResource {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Stream<GroupRepresentation> getGroups(@QueryParam("search") String search,
-                                                 @QueryParam("q") String searchQuery,
-                                                 @QueryParam("exact") @DefaultValue("false") Boolean exact,
                                                  @QueryParam("first") Integer firstResult,
                                                  @QueryParam("max") Integer maxResults,
                                                  @QueryParam("briefRepresentation") @DefaultValue("true") boolean briefRepresentation) {
         auth.groups().requireList();
 
-        if (Objects.nonNull(searchQuery)) {
-            Map<String, String> attributes = SearchQueryUtils.getFields(searchQuery);
-            return ModelToRepresentation.searchGroupsByAttributes(session, realm, !briefRepresentation, attributes, firstResult, maxResults);
-        } else if (Objects.nonNull(search)) {
-            return ModelToRepresentation.searchForGroupByName(session, realm, !briefRepresentation, search.trim(), exact, firstResult, maxResults);
+        if (Objects.nonNull(search)) {
+            return ModelToRepresentation.searchForGroupByName(realm, !briefRepresentation, search.trim(), firstResult, maxResults);
         } else if(Objects.nonNull(firstResult) && Objects.nonNull(maxResults)) {
             return ModelToRepresentation.toGroupHierarchy(realm, !briefRepresentation, firstResult, maxResults);
         } else {
@@ -147,12 +140,6 @@ public class GroupsResource {
 
         GroupModel child;
         Response.ResponseBuilder builder = Response.status(204);
-        String groupName = rep.getName();
-
-        if (ObjectUtil.isBlank(groupName)) {
-            return ErrorResponse.error("Group name is missing", Response.Status.BAD_REQUEST);
-        }
-
         try {
             if (rep.getId() != null) {
                 child = realm.getGroupById(rep.getId());
@@ -162,8 +149,8 @@ public class GroupsResource {
                 realm.moveGroup(child, null);
                 adminEvent.operation(OperationType.UPDATE).resourcePath(session.getContext().getUri());
             } else {
-                child = realm.createGroup(groupName);
-                GroupResource.updateGroup(rep, child, realm, session);
+                child = realm.createGroup(rep.getName());
+                GroupResource.updateGroup(rep, child);
                 URI uri = session.getContext().getUri().getAbsolutePathBuilder()
                         .path(child.getId()).build();
                 builder.status(201).location(uri);
@@ -172,7 +159,7 @@ public class GroupsResource {
                 adminEvent.operation(OperationType.CREATE).resourcePath(session.getContext().getUri(), child.getId());
             }
         } catch (ModelDuplicateException mde) {
-            return ErrorResponse.exists("Top level group named '" + groupName + "' already exists.");
+            return ErrorResponse.exists("Top level group named '" + rep.getName() + "' already exists.");
         }
 
         adminEvent.representation(rep).success();

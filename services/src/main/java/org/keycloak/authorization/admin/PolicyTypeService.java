@@ -81,9 +81,7 @@ public class PolicyTypeService extends PolicyService {
             throw new RuntimeException("Failed to deserialize JSON using policy provider for type [" + type + "].", e);
         }
 
-        if (!"js".equals(type) || representation.getType() == null) {
-            representation.setType(type);
-        }
+        representation.setType(type);
 
         return representation;
     }
@@ -94,8 +92,8 @@ public class PolicyTypeService extends PolicyService {
     }
 
     @Override
-    protected List<Object> doSearch(Integer firstResult, Integer maxResult, String fields, Map<Policy.FilterOption, String[]> filters) {
-        filters.put(Policy.FilterOption.TYPE, new String[] {type});
+    protected List<Object> doSearch(Integer firstResult, Integer maxResult, String fields, Map<String, String[]> filters) {
+        filters.put("type", new String[] {type});
         return super.doSearch(firstResult, maxResult, fields, filters);
     }
 }

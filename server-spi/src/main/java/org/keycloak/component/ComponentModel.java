@@ -85,23 +85,23 @@ public class ComponentModel implements Serializable {
     }
 
     public String get(String key, String defaultValue) {
-        String s = get(key);
+        String s = config.getFirst(key);
         return s != null ? s : defaultValue;
     }
 
     public int get(String key, int defaultValue) {
-        String s = get(key);
-        return s != null ? Integer.valueOf(s) : defaultValue;
+        String s = config.getFirst(key);
+        return s != null ? Integer.parseInt(s) : defaultValue;
     }
 
     public long get(String key, long defaultValue) {
-        String s = get(key);
-        return s != null ? Long.valueOf(s) : defaultValue;
+        String s = config.getFirst(key);
+        return s != null ? Long.parseLong(s) : defaultValue;
     }
 
     public boolean get(String key, boolean defaultValue) {
-        String s = get(key);
-        return s != null ? Boolean.valueOf(s) : defaultValue;
+        String s = config.getFirst(key);
+        return s != null ? Boolean.parseBoolean(s) : defaultValue;
     }
 
     public void put(String key, String value) {
@@ -109,15 +109,15 @@ public class ComponentModel implements Serializable {
     }
 
     public void put(String key, int value) {
-        put(key, Integer.toString(value));
+        config.putSingle(key, Integer.toString(value));
     }
 
     public void put(String key, long value) {
-        put(key, Long.toString(value));
+        config.putSingle(key, Long.toString(value));
     }
 
     public void put(String key, boolean value) {
-        put(key, Boolean.toString(value));
+        config.putSingle(key, Boolean.toString(value));
     }
 
     public boolean hasNote(String key) {
@@ -130,10 +130,6 @@ public class ComponentModel implements Serializable {
 
     public void setNote(String key, Object object) {
         notes.put(key, object);
-    }
-
-    public void removeNote(String key) {
-        notes.remove(key);
     }
 
     public String getProviderId() {

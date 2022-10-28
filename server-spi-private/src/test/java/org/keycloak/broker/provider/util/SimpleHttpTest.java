@@ -23,7 +23,6 @@ import org.junit.runners.Parameterized.Parameters;
 import org.keycloak.common.util.StreamUtil;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -98,13 +97,6 @@ public final class SimpleHttpTest {
             HttpClientMock client = new HttpClientMock();
             SimpleHttp.doPost("", client).json(new DummyEntity(value)).asResponse();
             assertEquals("{\"value\":\"" + value + "\"}", client.data);
-        }
-
-        @Test
-        public void requestWithEncodingParam() throws IOException {
-            HttpClientMock client = new HttpClientMock();
-            SimpleHttp.doPost("", client).param("dummy", value).asResponse();
-            assertEquals("dummy=" + URLEncoder.encode(value, "UTF-8"), client.data);
         }
 
         public static final class DummyEntity {

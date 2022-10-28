@@ -42,13 +42,11 @@ import org.keycloak.admin.client.resource.AuthorizationResource;
 import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.admin.client.resource.ClientsResource;
 import org.keycloak.authentication.authenticators.client.JWTClientAuthenticator;
-import org.keycloak.authentication.authenticators.client.JWTClientSecretAuthenticator;
 import org.keycloak.authorization.client.AuthzClient;
 import org.keycloak.authorization.client.ClientAuthenticator;
 import org.keycloak.authorization.client.Configuration;
 import org.keycloak.authorization.client.resource.ProtectionResource;
 import org.keycloak.authorization.client.util.HttpResponseException;
-import org.keycloak.common.util.Time;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.representations.AccessToken;
@@ -64,6 +62,8 @@ import org.keycloak.representations.idm.authorization.PermissionResponse;
 import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.util.ClientBuilder;
 import org.keycloak.testsuite.util.RealmBuilder;
 import org.keycloak.testsuite.util.RolesBuilder;
@@ -73,6 +73,7 @@ import org.keycloak.testsuite.util.UserBuilder;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class AuthzClientCredentialsTest extends AbstractAuthzTest {
 
     @Override
@@ -81,23 +82,8 @@ public class AuthzClientCredentialsTest extends AbstractAuthzTest {
                 .attribute(JWTClientAuthenticator.CERTIFICATE_ATTR, "MIICnTCCAYUCBgFPPLDaTzANBgkqhkiG9w0BAQsFADASMRAwDgYDVQQDDAdjbGllbnQxMB4XDTE1MDgxNzE3MjI0N1oXDTI1MDgxNzE3MjQyN1owEjEQMA4GA1UEAwwHY2xpZW50MTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAIUjjgv+V3s96O+Za9002Lp/trtGuHBeaeVL9dFKMKzO2MPqdRmHB4PqNlDdd28Rwf5Xn6iWdFpyUKOnI/yXDLhdcuFpR0sMNK/C9Lt+hSpPFLuzDqgtPgDotlMxiHIWDOZ7g9/gPYNXbNvjv8nSiyqoguoCQiiafW90bPHsiVLdP7ZIUwCcfi1qQm7FhxRJ1NiW5dvUkuCnnWEf0XR+Wzc5eC9EgB0taLFiPsSEIlWMm5xlahYyXkPdNOqZjiRnrTWm5Y4uk8ZcsD/KbPTf/7t7cQXipVaswgjdYi1kK2/zRwOhg1QwWFX/qmvdd+fLxV0R6VqRDhn7Qep2cxwMxLsCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAKE6OA46sf20bz8LZPoiNsqRwBUDkaMGXfnob7s/hJZIIwDEx0IAQ3uKsG7q9wb+aA6s+v7S340zb2k3IxuhFaHaZpAd4CyR5cn1FHylbzoZ7rI/3ASqHDqpljdJaFqPH+m7nZWtyDvtZf+gkZ8OjsndwsSBK1d/jMZPp29qYbl1+XfO7RCp/jDqro/R3saYFaIFiEZPeKn1hUJn6BO48vxH1xspSu9FmlvDOEAOz4AuM58z4zRMP49GcFdCWr1wkonJUHaSptJaQwmBwLFUkCbE5I1ixGMb7mjEud6Y5jhfzJiZMo2U8RfcjNbrN0diZl3jB6LQIwESnhYSghaTjNQ==")
                 .authenticatorType(JWTClientAuthenticator.PROVIDER_ID))
                 .build());
-        testRealms.add(configureRealm(RealmBuilder.create().name("authz-client-jwt-test-rs512"), ClientBuilder.create()
-                .attribute(JWTClientAuthenticator.CERTIFICATE_ATTR, "MIICnTCCAYUCBgFPPLDaTzANBgkqhkiG9w0BAQsFADASMRAwDgYDVQQDDAdjbGllbnQxMB4XDTE1MDgxNzE3MjI0N1oXDTI1MDgxNzE3MjQyN1owEjEQMA4GA1UEAwwHY2xpZW50MTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAIUjjgv+V3s96O+Za9002Lp/trtGuHBeaeVL9dFKMKzO2MPqdRmHB4PqNlDdd28Rwf5Xn6iWdFpyUKOnI/yXDLhdcuFpR0sMNK/C9Lt+hSpPFLuzDqgtPgDotlMxiHIWDOZ7g9/gPYNXbNvjv8nSiyqoguoCQiiafW90bPHsiVLdP7ZIUwCcfi1qQm7FhxRJ1NiW5dvUkuCnnWEf0XR+Wzc5eC9EgB0taLFiPsSEIlWMm5xlahYyXkPdNOqZjiRnrTWm5Y4uk8ZcsD/KbPTf/7t7cQXipVaswgjdYi1kK2/zRwOhg1QwWFX/qmvdd+fLxV0R6VqRDhn7Qep2cxwMxLsCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAKE6OA46sf20bz8LZPoiNsqRwBUDkaMGXfnob7s/hJZIIwDEx0IAQ3uKsG7q9wb+aA6s+v7S340zb2k3IxuhFaHaZpAd4CyR5cn1FHylbzoZ7rI/3ASqHDqpljdJaFqPH+m7nZWtyDvtZf+gkZ8OjsndwsSBK1d/jMZPp29qYbl1+XfO7RCp/jDqro/R3saYFaIFiEZPeKn1hUJn6BO48vxH1xspSu9FmlvDOEAOz4AuM58z4zRMP49GcFdCWr1wkonJUHaSptJaQwmBwLFUkCbE5I1ixGMb7mjEud6Y5jhfzJiZMo2U8RfcjNbrN0diZl3jB6LQIwESnhYSghaTjNQ==")
-                .attribute(OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG, "RS512")
-                .authenticatorType(JWTClientAuthenticator.PROVIDER_ID))
-                .build());
-        testRealms.add(configureRealm(RealmBuilder.create().name("authz-client-jwt-test-es512"), ClientBuilder.create()
-                .attribute(JWTClientAuthenticator.CERTIFICATE_ATTR, "MIIBwjCCASKgAwIBAgIERlzM0jAMBggqhkjOPQQDBAUAMBIxEDAOBgNVBAMTB2NsaWVudDEwHhcNMjExMjE4MTAwMDQ2WhcNNDkwNTA1MTAwMDQ2WjASMRAwDgYDVQQDEwdjbGllbnQxMIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQBhg6xxAxP9ahWYpEtI0zaimLpwWIdiHuVSy6Eavg5Sljyr/xOBh34jli1SbOIYd/2EqtYeY8gX2SKkVE3MKc75rYBzqYYJrlYgO7NQyVpJ1JpFXeWqnBxTRwrSvRXSmx5BpssODKoIZGfhsiYpSJMuVK7FQ4ZX7+Fp5HG+yo6rCIxSKijITAfMB0GA1UdDgQWBBTr3aWlNiVniOPf3W435tybEvcL/jAMBggqhkjOPQQDBAUAA4GLADCBhwJBKO5yryGgOcW/dH980c9VeCHBho5ZH/zD+lsAS9CDxWrD3+QUMptf7Nfj7G6F0F1QARXK4bNUQ9ZW3kVzEsdvL9kCQgHjKvdLXNCDhk+J3b2nRrh30QztD0j2tpK8bvmO2kPz5DQ80tS8ICZv/LcZl5wnjBCavWn7POhzzmAG/UGkNSyZqQ==")
-                .authenticatorType(JWTClientAuthenticator.PROVIDER_ID))
-                .build());
-        testRealms.add(configureRealm(RealmBuilder.create().name("authz-client-jwt-test-hs512"), ClientBuilder.create()
-                .secret("weird-secret-for-test-hs512")
-                .attribute(OIDCConfigAttributes.TOKEN_ENDPOINT_AUTH_SIGNING_ALG, "HS512")
-                .authenticatorType(JWTClientSecretAuthenticator.PROVIDER_ID))
-                .build());
         testRealms.add(configureRealm(RealmBuilder.create().name("authz-test"), ClientBuilder.create().secret("secret")).build());
         testRealms.add(configureRealm(RealmBuilder.create().name("authz-test-session").accessTokenLifespan(1), ClientBuilder.create().secret("secret")).build());
-        testRealms.add(configureRealm(RealmBuilder.create().name("authz-test-no-rt").accessTokenLifespan(1), ClientBuilder.create().secret("secret").attribute(OIDCConfigAttributes.USE_REFRESH_TOKEN_FOR_CLIENT_CREDENTIALS_GRANT, "false")).build());
     }
 
     @Before
@@ -131,8 +117,9 @@ public class AuthzClientCredentialsTest extends AbstractAuthzTest {
         assertAccessProtectionAPI(getAuthzClient("keycloak-with-jwt-authentication.json").protection());
     }
 
-    private void testSuccessfulAuthorizationRequest(String config) throws Exception {
-        AuthzClient authzClient = getAuthzClient(config);
+    @Test
+    public void testSuccessfulAuthorizationRequest() throws Exception {
+        AuthzClient authzClient = getAuthzClient("keycloak-with-jwt-authentication.json");
         ProtectionResource protection = authzClient.protection();
         PermissionRequest request = new PermissionRequest("Default Resource");
         PermissionResponse ticketResponse = protection.permission().create(request);
@@ -153,26 +140,6 @@ public class AuthzClientCredentialsTest extends AbstractAuthzTest {
 
         assertFalse(permissions.isEmpty());
         assertEquals("Default Resource", permissions.get(0).getResourceName());
-    }
-
-    @Test
-    public void testSuccessfulAuthorizationRS256Request() throws Exception {
-        testSuccessfulAuthorizationRequest("keycloak-with-jwt-authentication.json");
-    }
-
-    @Test
-    public void testSuccessfulAuthorizationRS512Request() throws Exception {
-        testSuccessfulAuthorizationRequest("keycloak-with-jwt-rs512-authentication.json");
-    }
-
-    @Test
-    public void testSuccessfulAuthorizationHS512Request() throws Exception {
-        testSuccessfulAuthorizationRequest("keycloak-with-jwt-hs512-authentication.json");
-    }
-
-    @Test
-    public void testSuccessfulAuthorizationES512Request() throws Exception {
-        testSuccessfulAuthorizationRequest("keycloak-with-jwt-es512-authentication.json");
     }
 
     @Test
@@ -284,32 +251,6 @@ public class AuthzClientCredentialsTest extends AbstractAuthzTest {
         userSessions = clients.get(clientRepresentation.getId()).getUserSessions(null, null);
 
         assertEquals(1, userSessions.size());
-    }
-
-    @Test
-    public void testNoRefreshToken() throws Exception {
-        ClientsResource clients = getAdminClient().realm("authz-test-no-rt").clients();
-        AuthzClient authzClient = getAuthzClient("default-session-keycloak-no-rt.json");
-        org.keycloak.authorization.client.resource.AuthorizationResource authorization = authzClient.authorization();
-        AuthorizationResponse response = authorization.authorize();
-        AccessToken accessToken = toAccessToken(response.getToken());
-
-        assertEquals(1, accessToken.getAuthorization().getPermissions().size());
-        assertEquals("Default Resource", accessToken.getAuthorization().getPermissions().iterator().next().getResourceName());
-
-        ProtectionResource protection = authzClient.protection();
-
-        assertEquals(1, protection.resource().findAll().length);
-
-        try {
-            // force token expiration on the client side
-            Time.setOffset(1000);
-
-            // should refresh tokens by doing client credentials again
-            assertEquals(1, protection.resource().findAll().length);
-        } finally {
-            Time.setOffset(0);
-        }
     }
 
     @Test

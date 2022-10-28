@@ -112,9 +112,6 @@ public class AccountUpdateProfilePage extends AbstractAccountPage {
         submitButton.click();
     }
 
-    public void submitWithoutChanges() {
-        submitButton.click();
-    }
 
     public void clickCancel() {
         cancelButton.click();

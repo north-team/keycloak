@@ -17,7 +17,6 @@
 
 package org.keycloak.services.resources.admin;
 
-import com.google.common.collect.Streams;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
@@ -51,6 +50,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -89,7 +89,7 @@ public class IdentityProvidersResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getIdentityProviders(@PathParam("provider_id") String providerId) {
         this.auth.realm().requireViewIdentityProviders();
-        IdentityProviderFactory providerFactory = getProviderFactoryById(providerId);
+        IdentityProviderFactory providerFactory = getProviderFactorytById(providerId);
         if (providerFactory != null) {
             return Response.ok(providerFactory).build();
         }
@@ -116,7 +116,7 @@ public class IdentityProvidersResource {
         String providerId = formDataMap.get("providerId").get(0).getBodyAsString();
         InputPart file = formDataMap.get("file").get(0);
         InputStream inputStream = file.getBody(InputStream.class, null);
-        IdentityProviderFactory providerFactory = getProviderFactoryById(providerId);
+        IdentityProviderFactory providerFactory = getProviderFactorytById(providerId);
         Map<String, String> config = providerFactory.parseConfig(session, inputStream);
         return config;
     }
@@ -144,7 +144,7 @@ public class IdentityProvidersResource {
         String from = data.get("fromUrl").toString();
         InputStream inputStream = session.getProvider(HttpClientProvider.class).get(from);
         try {
-            IdentityProviderFactory providerFactory = getProviderFactoryById(providerId);
+            IdentityProviderFactory providerFactory = getProviderFactorytById(providerId);
             Map<String, String> config;
             config = providerFactory.parseConfig(session, inputStream);
             return config;
@@ -221,16 +221,24 @@ public class IdentityProvidersResource {
         return identityProviderResource;
     }
 
-    private IdentityProviderFactory getProviderFactoryById(String providerId) {
-        return getProviderFactories()
-                .filter(providerFactory -> Objects.equals(providerId, providerFactory.getId()))
-                .map(IdentityProviderFactory.class::cast)
-                .findFirst()
-                .orElse(null);
+    private IdentityProviderFactory getProviderFactorytById(String providerId) {
+        List<ProviderFactory> allProviders = getProviderFactories();
+
+        for (ProviderFactory providerFactory : allProviders) {
+            if (providerFactory.getId().equals(providerId)) {
+                return (IdentityProviderFactory) providerFactory;
+            }
+        }
+
+        return null;
     }
 
-    private Stream<ProviderFactory> getProviderFactories() {
-        return Streams.concat(session.getKeycloakSessionFactory().getProviderFactoriesStream(IdentityProvider.class),
-                session.getKeycloakSessionFactory().getProviderFactoriesStream(SocialIdentityProvider.class));
+    private List<ProviderFactory> getProviderFactories() {
+        List<ProviderFactory> allProviders = new ArrayList<ProviderFactory>();
+
+        allProviders.addAll(this.session.getKeycloakSessionFactory().getProviderFactories(IdentityProvider.class));
+        allProviders.addAll(this.session.getKeycloakSessionFactory().getProviderFactories(SocialIdentityProvider.class));
+
+        return allProviders;
     }
 }

@@ -107,11 +107,6 @@ public class UserBuilder {
         rep.setEmail(email);
         return this;
     }
-    
-    public UserBuilder emailVerified(boolean emailVerified) {
-        rep.setEmailVerified(emailVerified);
-        return this;
-    }
 
     public UserBuilder enabled(boolean enabled) {
         rep.setEnabled(enabled);

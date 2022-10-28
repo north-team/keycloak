@@ -17,7 +17,6 @@
 
 package org.keycloak.models.cache.infinispan.authorization.events;
 
-import java.util.Objects;
 import java.util.Set;
 
 import org.keycloak.models.cache.infinispan.authorization.StoreFactoryCacheManager;
@@ -51,20 +50,6 @@ public class PermissionTicketRemovedEvent extends InvalidationEvent implements A
     @Override
     public String getId() {
         return id;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        PermissionTicketRemovedEvent that = (PermissionTicketRemovedEvent) o;
-        return Objects.equals(id, that.id) && Objects.equals(resource, that.resource) && Objects.equals(serverId, that.serverId);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), id, resource, serverId);
     }
 
     @Override

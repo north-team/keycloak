@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.keycloak.common.Profile.Feature.AUTHORIZATION;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,11 +51,6 @@ import org.keycloak.testsuite.util.UserBuilder;
  * @author <a href="mailto:psilva@redhat.com">Pedro Igor</a>
  */
 public abstract class AbstractPolicyManagementTest extends AbstractKeycloakTest {
-
-    @BeforeClass
-    public static void enabled() {
-        ProfileAssume.assumeFeatureEnabled(AUTHORIZATION);
-    }
 
     @Override
     public void addTestRealms(List<RealmRepresentation> testRealms) {

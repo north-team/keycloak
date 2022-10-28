@@ -61,15 +61,6 @@ public class AccessTokenResponse {
     @JsonProperty("scope")
     protected String scope;
 
-    @JsonProperty("error")
-    protected String error;
-
-    @JsonProperty("error_description")
-    protected String errorDescription;
-
-    @JsonProperty("error_uri")
-    protected String errorUri;
-
     public String getScope() {
         return scope;
     }
@@ -150,30 +141,6 @@ public class AccessTokenResponse {
     @JsonAnySetter
     public void setOtherClaims(String name, Object value) {
         otherClaims.put(name, value);
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public void setError(String error) {
-        this.error = error;
-    }
-
-    public String getErrorDescription() {
-        return errorDescription;
-    }
-
-    public void setErrorDescription(String errorDescription) {
-        this.errorDescription = errorDescription;
-    }
-
-    public String getErrorUri() {
-        return errorUri;
-    }
-
-    public void setErrorUri(String errorUri) {
-        this.errorUri = errorUri;
     }
 
 }

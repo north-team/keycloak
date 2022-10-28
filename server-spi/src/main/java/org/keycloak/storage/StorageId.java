@@ -21,50 +21,33 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.UserModel;
 
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
 public class StorageId implements Serializable {
-    private final String providerId;
-    private final String externalId;
+    private String id;
+    private String providerId;
+    private String externalId;
 
 
     public StorageId(String id) {
+        this.id = id;
         if (!id.startsWith("f:")) {
-            providerId = null;
             externalId = id;
-        } else {
-            int providerIndex = id.indexOf(':', 2);
-            providerId = id.substring(2, providerIndex);
-            externalId = id.substring(providerIndex + 1);
+            return;
         }
+        int providerIndex = id.indexOf(':', 2);
+        providerId = id.substring(2, providerIndex);
+        externalId = id.substring(providerIndex + 1);
+
     }
 
     public StorageId(String providerId, String externalId) {
-        if (providerId != null && providerId.contains(":")) {
-            throw new IllegalArgumentException("Provider must not contain a colon (:) character");
-        }
+        this.id = "f:" + providerId + ":" + externalId;
         this.providerId = providerId;
         this.externalId = externalId;
-    }
-
-    public boolean isLocal() {
-        return getProviderId() == null;
-    }
-
-    public String getId() {
-        return providerId == null ? externalId : ("f:" + providerId + ":" + externalId);
-    }
-
-    public String getProviderId() {
-        return providerId;
-    }
-
-    public String getExternalId() {
-        return externalId;
     }
 
     /**
@@ -85,67 +68,40 @@ public class StorageId implements Serializable {
         return new StorageId(keycloakId).getProviderId();
     }
 
+
+
+    public static String resolveProviderId(UserModel user) {
+        return new StorageId(user.getId()).getProviderId();
+    }
+    public static boolean isLocalStorage(UserModel user) {
+        return new StorageId(user.getId()).getProviderId() == null;
+    }
     public static boolean isLocalStorage(String id) {
         return new StorageId(id).getProviderId() == null;
     }
 
-    /**
-     * @deprecated Use {@link #providerId(String)} instead.
-     */
-    public static String resolveProviderId(UserModel user) {
-        return providerId(user.getId());
-    }
-
-    /**
-     * @deprecated Use {@link #isLocalStorage(String)} instead.
-     */
-    public static boolean isLocalStorage(UserModel user) {
-        return isLocalStorage(user.getId());
-    }
-
-    /**
-     * @deprecated Use {@link #providerId(String)} instead.
-     */
     public static String resolveProviderId(ClientModel client) {
-        return providerId(client.getId());
+        return new StorageId(client.getId()).getProviderId();
     }
-
-    /**
-     * @deprecated Use {@link #isLocalStorage(String)} instead.
-     */
     public static boolean isLocalStorage(ClientModel client) {
-        return isLocalStorage(client.getId());
+        return new StorageId(client.getId()).getProviderId() == null;
+    }
+    public boolean isLocal() {
+        return getProviderId() == null;
+
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(providerId, externalId);
+    public String getId() {
+        return id;
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final StorageId other = (StorageId) obj;
-        if ( ! Objects.equals(this.providerId, other.providerId)) {
-            return false;
-        }
-        if ( ! Objects.equals(this.externalId, other.externalId)) {
-            return false;
-        }
-        return true;
+    public String getProviderId() {
+        return providerId;
     }
 
-    @Override
-    public String toString() {
-        return getId();
+    public String getExternalId() {
+        return externalId;
     }
+
 
 }

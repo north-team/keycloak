@@ -16,15 +16,12 @@
  */
 package org.keycloak.services.resources.admin;
 
-import javax.ws.rs.core.Response.Status;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.BadRequestException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
-import org.keycloak.OAuthErrorException;
 import org.keycloak.authorization.admin.AuthorizationService;
 import org.keycloak.common.ClientConnection;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.Errors;
 import org.keycloak.events.admin.OperationType;
@@ -32,7 +29,6 @@ import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientScopeModel;
-import org.keycloak.models.ClientSecretConstants;
 import org.keycloak.models.Constants;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
@@ -45,7 +41,6 @@ import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.models.utils.RepresentationToModel;
 import org.keycloak.protocol.ClientInstallationProvider;
-import org.keycloak.protocol.oidc.OIDCClientSecretConfigWrapper;
 import org.keycloak.representations.adapters.action.GlobalRequestResult;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
@@ -55,12 +50,8 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
 import org.keycloak.services.ErrorResponse;
 import org.keycloak.services.ErrorResponseException;
+import org.keycloak.services.clientpolicy.AdminClientUpdateContext;
 import org.keycloak.services.clientpolicy.ClientPolicyException;
-import org.keycloak.services.clientpolicy.context.AdminClientUnregisterContext;
-import org.keycloak.services.clientpolicy.context.AdminClientUpdateContext;
-import org.keycloak.services.clientpolicy.context.AdminClientUpdatedContext;
-import org.keycloak.services.clientpolicy.context.AdminClientViewContext;
-import org.keycloak.services.clientpolicy.context.ClientSecretRotationContext;
 import org.keycloak.services.clientregistration.ClientRegistrationTokenUtils;
 import org.keycloak.services.clientregistration.policy.RegistrationAuth;
 import org.keycloak.services.managers.ClientManager;
@@ -69,10 +60,7 @@ import org.keycloak.services.managers.ResourceAdminManager;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionManagement;
 import org.keycloak.services.resources.admin.permissions.AdminPermissions;
-import org.keycloak.utils.CredentialHelper;
-import org.keycloak.utils.ProfileHelper;
 import org.keycloak.utils.ReservedCharValidator;
-import org.keycloak.utils.StringUtil;
 import org.keycloak.validation.ValidationUtil;
 
 import javax.ws.rs.Consumes;
@@ -89,6 +77,8 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -142,9 +132,12 @@ public class ClientResource {
         auth.clients().requireConfigure(client);
 
         try {
-            session.setAttribute(ClientSecretConstants.CLIENT_SECRET_ROTATION_ENABLED,Boolean.FALSE);
-            session.clientPolicy().triggerOnEvent(new AdminClientUpdateContext(rep, client, auth.adminAuth()));
+            session.clientPolicy().triggerOnEvent(new AdminClientUpdateContext(rep, auth.adminAuth(), client));
+        } catch (ClientPolicyException cpe) {
+            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
+        }
 
+        try {
             updateClientFromRep(rep, client, session);
 
             ValidationUtil.validateClient(session, client, false, r -> {
@@ -155,20 +148,10 @@ public class ClientResource {
                         Response.Status.BAD_REQUEST);
             });
 
-            session.clientPolicy().triggerOnEvent(new AdminClientUpdatedContext(rep, client, auth.adminAuth()));
-
-            if (!(boolean) session.getAttribute(ClientSecretConstants.CLIENT_SECRET_ROTATION_ENABLED)){
-                logger.debugv("Removing the previous rotation info for client {0}{1}, if there is",client.getClientId(),client.getName());
-                OIDCClientSecretConfigWrapper.fromClientModel(client).removeClientSecretRotationInfo();
-            }
-            session.removeAttribute(ClientSecretConstants.CLIENT_SECRET_ROTATION_ENABLED);
-
             adminEvent.operation(OperationType.UPDATE).resourcePath(session.getContext().getUri()).representation(rep).success();
             return Response.noContent().build();
         } catch (ModelDuplicateException e) {
             return ErrorResponse.exists("Client already exists");
-        } catch (ClientPolicyException cpe) {
-            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
         }
     }
 
@@ -181,12 +164,6 @@ public class ClientResource {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public ClientRepresentation getClient() {
-        try {
-            session.clientPolicy().triggerOnEvent(new AdminClientViewContext(client, auth.adminAuth()));
-        } catch (ClientPolicyException cpe) {
-            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
-        }
-
         auth.clients().requireView(client);
 
         ClientRepresentation representation = ModelToRepresentation.toRepresentation(client, session);
@@ -231,19 +208,8 @@ public class ClientResource {
             throw new NotFoundException("Could not find client");
         }
 
-        try {
-            session.clientPolicy().triggerOnEvent(new AdminClientUnregisterContext(client, auth.adminAuth()));
-        } catch (ClientPolicyException cpe) {
-            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
-        }
-
-        if (new ClientManager(new RealmManager(session)).removeClient(realm, client)) {
-            adminEvent.operation(OperationType.DELETE).resourcePath(session.getContext().getUri()).success();
-        }
-        else {
-            throw new ErrorResponseException(OAuthErrorException.INVALID_REQUEST, "Could not delete client",
-                    Response.Status.BAD_REQUEST);
-        }
+        new ClientManager(new RealmManager(session)).removeClient(realm, client);
+        adminEvent.operation(OperationType.DELETE).resourcePath(session.getContext().getUri()).success();
     }
 
 
@@ -257,37 +223,13 @@ public class ClientResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     public CredentialRepresentation regenerateSecret() {
-        try{
-            auth.clients().requireConfigure(client);
+        auth.clients().requireConfigure(client);
 
-            logger.debug("regenerateSecret");
-            session.setAttribute(ClientSecretConstants.CLIENT_SECRET_ROTATION_ENABLED,Boolean.FALSE);
-
-            ClientRepresentation representation = ModelToRepresentation.toRepresentation(client, session);
-            ClientSecretRotationContext secretRotationContext = new ClientSecretRotationContext(
-                representation, client, client.getSecret());
-
-            String secret = KeycloakModelUtils.generateSecret(client);
-
-            session.clientPolicy().triggerOnEvent(secretRotationContext);
-
-            CredentialRepresentation rep = new CredentialRepresentation();
-            rep.setType(CredentialRepresentation.SECRET);
-            rep.setValue(secret);
-
-            if (!(boolean) session.getAttribute(ClientSecretConstants.CLIENT_SECRET_ROTATION_ENABLED)){
-                logger.debugv("Removing the previous rotation info for client {0}{1}, if there is",client.getClientId(),client.getName());
-                OIDCClientSecretConfigWrapper.fromClientModel(client).removeClientSecretRotationInfo();
-            }
-
-            adminEvent.operation(OperationType.ACTION).resourcePath(session.getContext().getUri()).representation(rep).success();
-            session.removeAttribute(ClientSecretConstants.CLIENT_SECRET_ROTATION_ENABLED);
-
-            return rep;
-        } catch (ClientPolicyException cpe) {
-            throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(),
-                Response.Status.BAD_REQUEST);
-        }
+        logger.debug("regenerateSecret");
+        UserCredentialModel cred = KeycloakModelUtils.generateSecret(client);
+        CredentialRepresentation rep = ModelToRepresentation.toRepresentation(cred);
+        adminEvent.operation(OperationType.ACTION).resourcePath(session.getContext().getUri()).representation(rep).success();
+        return rep;
     }
 
     /**
@@ -356,14 +298,21 @@ public class ClientResource {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     @Path("default-client-scopes")
-    public Stream<ClientScopeRepresentation> getDefaultClientScopes() {
+    public List<ClientScopeRepresentation> getDefaultClientScopes() {
         return getDefaultClientScopes(true);
     }
 
-    private Stream<ClientScopeRepresentation> getDefaultClientScopes(boolean defaultScope) {
+    private List<ClientScopeRepresentation> getDefaultClientScopes(boolean defaultScope) {
         auth.clients().requireView(client);
 
-        return client.getClientScopes(defaultScope).values().stream().map(ClientResource::toRepresentation);
+        List<ClientScopeRepresentation> defaults = new LinkedList<>();
+        for (ClientScopeModel clientScope : client.getClientScopes(defaultScope, true).values()) {
+            ClientScopeRepresentation rep = new ClientScopeRepresentation();
+            rep.setId(clientScope.getId());
+            rep.setName(clientScope.getName());
+            defaults.add(rep);
+        }
+        return defaults;
     }
 
 
@@ -381,12 +330,9 @@ public class ClientResource {
         if (clientScope == null) {
             throw new javax.ws.rs.NotFoundException("Client scope not found");
         }
-        if (defaultScope && clientScope.isDynamicScope()) {
-            throw new ErrorResponseException("invalid_request", "Can't assign a Dynamic Scope to a Client as a Default Scope", Response.Status.BAD_REQUEST);
-        }
         client.addClientScope(clientScope, defaultScope);
 
-        adminEvent.operation(OperationType.CREATE).resource(ResourceType.CLIENT_SCOPE_CLIENT_MAPPING).resourcePath(session.getContext().getUri()).success();
+        adminEvent.operation(OperationType.CREATE).resource(ResourceType.CLIENT).resourcePath(session.getContext().getUri()).success();
     }
 
 
@@ -402,7 +348,7 @@ public class ClientResource {
         }
         client.removeClientScope(clientScope);
 
-        adminEvent.operation(OperationType.DELETE).resource(ResourceType.CLIENT_SCOPE_CLIENT_MAPPING).resourcePath(session.getContext().getUri()).success();
+        adminEvent.operation(OperationType.DELETE).resource(ResourceType.CLIENT).resourcePath(session.getContext().getUri()).success();
     }
 
 
@@ -415,7 +361,7 @@ public class ClientResource {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     @Path("optional-client-scopes")
-    public Stream<ClientScopeRepresentation> getOptionalClientScopes() {
+    public List<ClientScopeRepresentation> getOptionalClientScopes() {
         return getDefaultClientScopes(false);
     }
 
@@ -588,9 +534,9 @@ public class ClientResource {
         if (node == null) {
             throw new BadRequestException("Node not found in params");
         }
-
+        
         ReservedCharValidator.validate(node);
-
+        
         if (logger.isDebugEnabled()) logger.debug("Register node: " + node);
         client.registerNode(node, Time.currentTime());
         adminEvent.operation(OperationType.CREATE).resource(ResourceType.CLUSTER_NODE).resourcePath(session.getContext().getUri(), node).success();
@@ -639,8 +585,6 @@ public class ClientResource {
 
     @Path("/authz")
     public AuthorizationService authorization() {
-        ProfileHelper.requireFeature(Profile.Feature.AUTHORIZATION);
-
         AuthorizationService resource = new AuthorizationService(this.session, this.client, this.auth, adminEvent);
 
         ResteasyProviderFactory.getInstance().injectProperties(resource);
@@ -698,59 +642,6 @@ public class ClientResource {
         }
     }
 
-    /**
-     * Invalidate the rotated secret for the client
-     *
-     * @return
-     */
-    @Path("client-secret/rotated")
-    @DELETE
-    @Produces(MediaType.APPLICATION_JSON)
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response invalidateRotatedSecret() {
-        try{
-            auth.clients().requireConfigure(client);
-
-            logger.debug("delete rotated secret");
-
-            OIDCClientSecretConfigWrapper wrapper = OIDCClientSecretConfigWrapper.fromClientModel(client);
-
-            CredentialRepresentation rep = new CredentialRepresentation();
-            rep.setType(CredentialRepresentation.SECRET);
-            rep.setValue(wrapper.getClientRotatedSecret());
-
-            adminEvent.operation(OperationType.DELETE).resourcePath(session.getContext().getUri()).representation(rep).success();
-
-            wrapper.removeClientSecretRotated();
-
-            return Response.noContent().build();
-        } catch (RuntimeException rte) {
-            throw new ErrorResponseException(rte.getCause().getMessage(), rte.getMessage(),
-                Status.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    /**
-     * Get the rotated client secret
-     *
-     * @return
-     */
-    @Path("client-secret/rotated")
-    @GET
-    @NoCache
-    @Produces(MediaType.APPLICATION_JSON)
-    public CredentialRepresentation getClientRotatedSecret() {
-        auth.clients().requireView(client);
-
-        logger.debug("getClientRotatedSecret");
-        OIDCClientSecretConfigWrapper wrapper = OIDCClientSecretConfigWrapper.fromClientModel(client);
-        if (!wrapper.hasRotatedSecret())
-            throw new NotFoundException("Client does not have a rotated secret");
-        else {
-            UserCredentialModel model = UserCredentialModel.secret(wrapper.getClientRotatedSecret());
-            return ModelToRepresentation.toRepresentation(model);
-        }
-    }
 
     private void updateClientFromRep(ClientRepresentation rep, ClientModel client, KeycloakSession session) throws ModelDuplicateException {
         UserModel serviceAccount = this.session.users().getServiceAccount(client);
@@ -766,7 +657,7 @@ public class ClientResource {
         }
 
         if (rep.getClientId() != null && !rep.getClientId().equals(client.getClientId())) {
-            new ClientManager(new RealmManager(session)).clientIdChanged(client, rep);
+            new ClientManager(new RealmManager(session)).clientIdChanged(client, rep.getClientId());
         }
 
         if (rep.isFullScopeAllowed() != null && rep.isFullScopeAllowed() != client.isFullScopeAllowed()) {
@@ -777,18 +668,16 @@ public class ClientResource {
             rep.setAuthorizationServicesEnabled(false);
         }
 
-        RepresentationToModel.updateClient(rep, client, session);
+        RepresentationToModel.updateClient(rep, client);
         RepresentationToModel.updateClientProtocolMappers(rep, client);
         updateAuthorizationSettings(rep);
     }
 
     private void updateAuthorizationSettings(ClientRepresentation rep) {
-        if (Profile.isFeatureEnabled(Profile.Feature.AUTHORIZATION)) {
-            if (TRUE.equals(rep.getAuthorizationServicesEnabled())) {
-                authorization().enable(false);
-            } else {
-                authorization().disable();
-            }
+        if (TRUE.equals(rep.getAuthorizationServicesEnabled())) {
+            authorization().enable(false);
+        } else {
+            authorization().disable();
         }
     }
 
@@ -808,13 +697,6 @@ public class ClientResource {
         if (result != null) {
             rep.setLastAccess(Time.toMillis(result.getValue().getTimestamp()));
         }
-        return rep;
-    }
-
-    private static ClientScopeRepresentation toRepresentation(ClientScopeModel clientScopeModel) {
-        ClientScopeRepresentation rep = new ClientScopeRepresentation();
-        rep.setId(clientScopeModel.getId());
-        rep.setName(clientScopeModel.getName());
         return rep;
     }
 }

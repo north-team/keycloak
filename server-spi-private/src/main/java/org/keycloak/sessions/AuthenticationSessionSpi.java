@@ -26,8 +26,6 @@ import org.keycloak.provider.Spi;
  */
 public class AuthenticationSessionSpi implements Spi {
 
-    public static final String PROVIDER_ID = "authenticationSessions";
-
     @Override
     public boolean isInternal() {
         return true;
@@ -35,7 +33,7 @@ public class AuthenticationSessionSpi implements Spi {
 
     @Override
     public String getName() {
-        return PROVIDER_ID;
+        return "authenticationSessions";
     }
 
     @Override

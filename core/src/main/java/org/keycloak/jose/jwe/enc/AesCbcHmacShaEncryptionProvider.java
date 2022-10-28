@@ -34,7 +34,6 @@ import javax.crypto.Mac;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.keycloak.common.crypto.CryptoIntegration;
 import org.keycloak.jose.jwe.JWE;
 import org.keycloak.jose.jwe.JWEKeyStorage;
 import org.keycloak.jose.jwe.JWEUtils;
@@ -117,14 +116,15 @@ public abstract class AesCbcHmacShaEncryptionProvider implements JWEEncryptionPr
 
 
     private byte[] encryptBytes(byte[] contentBytes, byte[] ivBytes, Key aesKey) throws GeneralSecurityException {
-        Cipher cipher = CryptoIntegration.getProvider().getAesCbcCipher();
-          AlgorithmParameterSpec ivParamSpec = new IvParameterSpec(ivBytes);
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding", "BC");
+        AlgorithmParameterSpec ivParamSpec = new IvParameterSpec(ivBytes);
         cipher.init(Cipher.ENCRYPT_MODE, aesKey, ivParamSpec);
         return cipher.doFinal(contentBytes);
     }
 
+
     private byte[] decryptBytes(byte[] encryptedBytes, byte[] ivBytes, Key aesKey) throws GeneralSecurityException {
-        Cipher cipher = CryptoIntegration.getProvider().getAesCbcCipher();
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS7Padding", "BC");
         AlgorithmParameterSpec ivParamSpec = new IvParameterSpec(ivBytes);
         cipher.init(Cipher.DECRYPT_MODE, aesKey, ivParamSpec);
         return cipher.doFinal(encryptedBytes);

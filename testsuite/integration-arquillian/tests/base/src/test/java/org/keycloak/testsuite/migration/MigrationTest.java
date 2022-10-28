@@ -30,15 +30,14 @@ import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.A
 import static org.keycloak.testsuite.auth.page.AuthRealm.MASTER;
 
 /**
- * Test for DB migration with legacy JPA store
- *
  * @author <a href="mailto:vramik@redhat.com">Vlastislav Ramik</a>
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class MigrationTest extends AbstractMigrationTest {
 
     @Override
     public void addTestRealms(List<RealmRepresentation> testRealms) {
-        log.info("Adding no test realms for migration test. Test realm should be migrated from previous version.");
+        log.info("Adding no test realms for migration test. Test realm should be migrated from previous vesrion.");
     }
 
     @Before
@@ -59,15 +58,79 @@ public class MigrationTest extends AbstractMigrationTest {
     }
 
     @Test
-    @Migration(versionPrefix = "17.")
-    public void migration17_xTest() throws Exception{
+    @Migration(versionFrom = "9.")
+    public void migration9_xTest() throws Exception {
         testMigratedData(false);
-        testMigrationTo18_x();
+        testMigrationTo12_x();
 
         // Always test offline-token login during migration test
         testOfflineTokenLogin();
-        testExtremelyLongClientAttribute(migrationRealm);
-
-        testMigrationTo20_x();
     }
+
+    @Test
+    @Migration(versionFrom = "4.")
+    public void migration4_xTest() throws Exception {
+        testMigratedData();
+        testMigrationTo5_x();
+        testMigrationTo6_x();
+        testMigrationTo7_x(true);
+        testMigrationTo8_x();
+        testMigrationTo9_x();
+        testMigrationTo12_x();
+
+        // Always test offline-token login during migration test
+        testOfflineTokenLogin();
+    }
+
+    @Test
+    @Migration(versionFrom = "3.")
+    public void migration3_xTest() throws Exception {
+        testMigratedData();
+        testMigrationTo4_x();
+        testMigrationTo5_x();
+        testMigrationTo6_x();
+        testMigrationTo7_x(true);
+        testMigrationTo8_x();
+        testMigrationTo9_x();
+        testMigrationTo12_x();
+
+        // Always test offline-token login during migration test
+        testOfflineTokenLogin();
+    }
+
+    @Test
+    @Migration(versionFrom = "2.")
+    public void migration2_xTest() throws Exception {
+        testMigratedData();
+        testMigrationTo3_x();
+        testMigrationTo4_x();
+        testMigrationTo5_x();
+        testMigrationTo6_x();
+        testMigrationTo7_x(true);
+        testMigrationTo8_x();
+        testMigrationTo9_x();
+        testMigrationTo12_x();
+
+        // Always test offline-token login during migration test
+        testOfflineTokenLogin();
+    }
+
+    @Test
+    @Migration(versionFrom = "1.")
+    public void migration1_xTest() throws Exception {
+        testMigratedData(false);
+        testMigrationTo2_x();
+        testMigrationTo3_x();
+        testMigrationTo4_x(false, false);
+        testMigrationTo5_x();
+        testMigrationTo6_x();
+        testMigrationTo7_x(false);
+        testMigrationTo8_x();
+        testMigrationTo9_x();
+        testMigrationTo12_x();
+
+        // Always test offline-token login during migration test
+        testOfflineTokenLogin();
+    }
+
 }

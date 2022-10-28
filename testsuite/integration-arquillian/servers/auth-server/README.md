@@ -5,18 +5,42 @@
 - Keycloak Arquillian Integration TestSuite - Test Servers - Auth Server
 - [Keycloak Arquillian Integration TestSuite - Test Servers - App Servers](../app-server/README.md)
 
-### Common directory
- - Contains all necessary files for all Auth servers
+## Auth Server - JBoss
 
-### Auth Server Services
-- Contains usually test providers and its associated factories used in the testsuite
+Common configurations of Keycloak server on JBoss-based container (Wildfly/EAP).
 
-## Auth servers
+### Submodules
 
-### Undertow
-- Arquillian extension for running Keycloak server in embedded Undertow.
-- Activated by default, or explicitly by __`-Pauth-server-undertow`__
+#### `wildfly` Wildfly latest
+ - Builds keycloak server on top of latest Wildfly.
+ - Activated by __`-Pauth-server-wildfly`__
 
-### Quarkus
- - Builds keycloak server on top of used Quarkus with a particular version.
- - Activated by __`-Pauth-server-quarkus`__
+#### `eap` EAP 7
+ - Builds keycloak server on top of latest EAP.
+ - Activated by __`-Pauth-server-eap`__
+ - Requires access to product repo.
+ - Requires additional properties:
+   - `product.version`
+   - `product.unpacked.folder.name` (optional; the default value is based on the POM versions)
+   - `product` to activate the product profile; NOT required if `product.unpacked.folder.name` is specified
+
+### Server dist vs overlay
+
+By default `keycloak-server-dist` artifact is used for the build.
+By setting `-Dserver-overlay=true` you can switch to server overlay instead. See profile `server-overlay`.
+
+### JPA
+
+Configures Keycloak JDBC datasource in `standalone.xml`. See profile `jpa`.
+
+### Cluster
+
+Configures in `standalone-ha.xml`:
+- h2 datasource over TCP (if not executed together with jpa)
+- parameters of Keycloak Infinispan caches
+
+See profile `auth-server-cluster`.
+
+## Auth Server - Undertow
+
+Arquillian extension for running Keycloak server in embedded Undertow.

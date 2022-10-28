@@ -35,7 +35,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.keycloak.models.jpa.PaginationUtils.paginateQuery;
+import static org.keycloak.events.jpa.JpaEventQuery.DEFAULT_MAX_RESULTS;
 import static org.keycloak.utils.StreamsUtil.closing;
 
 /**
@@ -50,8 +50,7 @@ public class JpaAdminEventQuery implements AdminEventQuery {
     private final ArrayList<Predicate> predicates;
     private Integer firstResult;
     private Integer maxResults;
-    private boolean orderByDescTime = true;
-
+    
     public JpaAdminEventQuery(EntityManager em) {
         this.em = em;
 
@@ -145,32 +144,27 @@ public class JpaAdminEventQuery implements AdminEventQuery {
     }
 
     @Override
-    public AdminEventQuery orderByDescTime() {
-        orderByDescTime = true;
-        return this;
-    }
-
-    @Override
-    public AdminEventQuery orderByAscTime() {
-        orderByDescTime = false;
-        return this;
-    }
-
-    @Override
     public Stream<AdminEvent> getResultStream() {
         if (!predicates.isEmpty()) {
             cq.where(cb.and(predicates.toArray(new Predicate[predicates.size()])));
         }
 
-        if (orderByDescTime) {
-            cq.orderBy(cb.desc(root.get("time")));
-        } else {
-            cq.orderBy(cb.asc(root.get("time")));
-        }
+        cq.orderBy(cb.desc(root.get("time")));
 
         TypedQuery<AdminEventEntity> query = em.createQuery(cq);
 
-        return closing(paginateQuery(query, firstResult, maxResults).getResultStream().map(JpaEventStoreProvider::convertAdminEvent));
+        if (firstResult != null) {
+            query.setFirstResult(firstResult);
+        }
+
+        if (maxResults != null) {
+            query.setMaxResults(maxResults);
+        } else {
+            // to workaround https://hibernate.atlassian.net/browse/HHH-14295
+            query.setMaxResults(DEFAULT_MAX_RESULTS);
+        }
+
+        return closing(query.getResultStream().map(JpaEventStoreProvider::convertAdminEvent));
     }
     
 }

@@ -14,10 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import Keycloak, { KeycloakLoginOptions } from "../../../../../../../../../../adapters/oidc/js";
+import {KeycloakLoginOptions} from "../../../../../../../../../../adapters/oidc/js/src/main/resources/keycloak";
 
 declare const baseUrl: string;
-export type KeycloakClient = Keycloak;
+export type KeycloakClient = Keycloak.KeycloakInstance;
 
 export class KeycloakService {
     private keycloakAuth: KeycloakClient;
@@ -28,14 +28,6 @@ export class KeycloakService {
 
     public authenticated(): boolean {
         return this.keycloakAuth.authenticated ? this.keycloakAuth.authenticated : false;
-    }
-
-    public audiencePresent(): boolean {
-        if (this.keycloakAuth.tokenParsed) {
-            const audience = this.keycloakAuth.tokenParsed['aud'];
-            return audience === 'account' || (Array.isArray(audience) && audience.indexOf('account') >= 0);
-        }
-        return false;
     }
 
     public login(options?: KeycloakLoginOptions): void {

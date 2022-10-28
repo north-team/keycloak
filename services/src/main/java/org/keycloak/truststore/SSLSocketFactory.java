@@ -22,7 +22,6 @@ import org.jboss.logging.Logger;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.util.Comparator;
 
 
 /**
@@ -37,7 +36,7 @@ import java.util.Comparator;
  * @author <a href="mailto:mstrukel@redhat.com">Marko Strukelj</a>
  */
 
-public class SSLSocketFactory extends javax.net.ssl.SSLSocketFactory implements Comparator {
+public class SSLSocketFactory extends javax.net.ssl.SSLSocketFactory {
 
     private static final Logger log = Logger.getLogger(SSLSocketFactory.class);
 
@@ -108,8 +107,4 @@ public class SSLSocketFactory extends javax.net.ssl.SSLSocketFactory implements 
         return sslsf.createSocket();
     }
 
-    @Override
-    public int compare(Object socketFactory1, Object socketFactory2) {
-        return socketFactory1.equals(socketFactory2) ? 0 : -1;
-    }
 }

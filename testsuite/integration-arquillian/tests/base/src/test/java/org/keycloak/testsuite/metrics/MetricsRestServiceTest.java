@@ -21,6 +21,7 @@ import javax.ws.rs.client.Client;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.keycloak.representations.idm.RealmRepresentation;
@@ -28,7 +29,6 @@ import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.ContainerAssume;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.keycloak.testsuite.util.Matchers.body;
 import static org.keycloak.testsuite.util.Matchers.statusCodeIs;
@@ -52,11 +52,10 @@ public class MetricsRestServiceTest extends AbstractKeycloakTest {
     @Test
     public void testHealthEndpoint() {
         Client client = AdminClientUtil.createResteasyClient();
-        final String expectedString = "{\"name\" : \"server-state\", \"outcome\" : true, \"data\" : [{ \"value\" : \"running\" }]}";
 
         try (Response response = client.target("http://" + MGMT_HOST + ":" + MGMT_PORT + "/health").request().get()) {
-            assertThat(response, statusCodeIs(Status.OK));
-            assertThat(response, body(containsString(expectedString)));
+            Assert.assertThat(response, statusCodeIs(Status.OK));
+            Assert.assertThat(response, body(containsString("{\"status\":\"UP\",\"checks\":[{")));
         } finally {
             client.close();
         }
@@ -67,8 +66,8 @@ public class MetricsRestServiceTest extends AbstractKeycloakTest {
         Client client = AdminClientUtil.createResteasyClient();
 
         try (Response response = client.target("http://" + MGMT_HOST + ":" + MGMT_PORT + "/metrics").request().get()) {
-            assertThat(response, statusCodeIs(Status.OK));
-            assertThat(response, body(containsString("base_memory_maxHeap_bytes")));
+            Assert.assertThat(response, statusCodeIs(Status.OK));
+            Assert.assertThat(response, body(containsString("base_memory_maxHeap_bytes")));
         } finally {
             client.close();
         }

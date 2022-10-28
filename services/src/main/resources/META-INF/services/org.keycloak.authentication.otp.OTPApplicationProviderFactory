@@ -1,2 +1,0 @@
-org.keycloak.authentication.otp.GoogleAuthenticatorProvider
-org.keycloak.authentication.otp.FreeOTPProvider

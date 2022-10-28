@@ -18,9 +18,6 @@
 package org.keycloak.keys;
 
 import org.jboss.logging.Logger;
-import org.keycloak.Config;
-import org.keycloak.common.crypto.CryptoIntegration;
-import org.keycloak.common.util.KeystoreUtil;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.component.ComponentValidationException;
 import org.keycloak.models.KeycloakSession;
@@ -30,7 +27,6 @@ import org.keycloak.provider.ProviderConfigProperty;
 
 import java.util.List;
 
-import static org.keycloak.provider.ProviderConfigProperty.LIST_TYPE;
 import static org.keycloak.provider.ProviderConfigProperty.STRING_TYPE;
 
 /**
@@ -47,11 +43,6 @@ public class JavaKeystoreKeyProviderFactory extends AbstractRsaKeyProviderFactor
     public static String KEYSTORE_PASSWORD_KEY = "keystorePassword";
     public static ProviderConfigProperty KEYSTORE_PASSWORD_PROPERTY = new ProviderConfigProperty(KEYSTORE_PASSWORD_KEY, "Keystore Password", "Password for the keys", STRING_TYPE, null, true);
 
-    public static String KEYSTORE_TYPE_KEY = "keystoreType";
-
-    // Initialization of this property is postponed to "init()" due the CryptoProvider must be set
-    private ProviderConfigProperty keystoreTypeProperty;
-
     public static String KEY_ALIAS_KEY = "keyAlias";
     public static ProviderConfigProperty KEY_ALIAS_PROPERTY = new ProviderConfigProperty(KEY_ALIAS_KEY, "Key Alias", "Alias for the private key", STRING_TYPE, null);
 
@@ -60,26 +51,12 @@ public class JavaKeystoreKeyProviderFactory extends AbstractRsaKeyProviderFactor
 
     private static final String HELP_TEXT = "Loads keys from a Java keys file";
 
-    private List<ProviderConfigProperty> configProperties;
-
-    @Override
-    public void init(Config.Scope config) {
-        String[] supportedKeystoreTypes = CryptoIntegration.getProvider().getSupportedKeyStoreTypes()
-                .map(KeystoreUtil.KeystoreFormat::toString)
-                .toArray(String[]::new);
-        this.keystoreTypeProperty = new ProviderConfigProperty(KEYSTORE_TYPE_KEY, "Keystore Type",
-                "Keystore type. This parameter is not mandatory. If omitted, the type will be detected from keystore file or default keystore type will be used", LIST_TYPE,
-                supportedKeystoreTypes.length > 0 ? supportedKeystoreTypes[0] : null, supportedKeystoreTypes);
-
-        configProperties = AbstractRsaKeyProviderFactory.configurationBuilder()
-                .property(KEYSTORE_PROPERTY)
-                .property(KEYSTORE_PASSWORD_PROPERTY)
-                .property(keystoreTypeProperty)
-                .property(KEY_ALIAS_PROPERTY)
-                .property(KEY_PASSWORD_PROPERTY)
-                .property(Attributes.KEY_USE_PROPERTY)
-                .build();
-    }
+    private static final List<ProviderConfigProperty> CONFIG_PROPERTIES = AbstractRsaKeyProviderFactory.configurationBuilder()
+            .property(KEYSTORE_PROPERTY)
+            .property(KEYSTORE_PASSWORD_PROPERTY)
+            .property(KEY_ALIAS_PROPERTY)
+            .property(KEY_PASSWORD_PROPERTY)
+            .build();
 
     @Override
     public KeyProvider create(KeycloakSession session, ComponentModel model) {
@@ -93,12 +70,12 @@ public class JavaKeystoreKeyProviderFactory extends AbstractRsaKeyProviderFactor
         ConfigurationValidationHelper.check(model)
                 .checkSingle(KEYSTORE_PROPERTY, true)
                 .checkSingle(KEYSTORE_PASSWORD_PROPERTY, true)
-                .checkSingle(keystoreTypeProperty, false)
                 .checkSingle(KEY_ALIAS_PROPERTY, true)
                 .checkSingle(KEY_PASSWORD_PROPERTY, true);
 
         try {
-            new JavaKeystoreKeyProvider(realm, model).loadKey(realm, model);
+            new JavaKeystoreKeyProvider(session.getContext().getRealm(), model)
+                    .loadKey(session.getContext().getRealm(), model);
         } catch (Throwable t) {
             logger.error("Failed to load keys.", t);
             throw new ComponentValidationException("Failed to load keys. " + t.getMessage(), t);
@@ -112,7 +89,7 @@ public class JavaKeystoreKeyProviderFactory extends AbstractRsaKeyProviderFactor
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
-        return this.configProperties;
+        return CONFIG_PROPERTIES;
     }
 
     @Override

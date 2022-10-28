@@ -36,6 +36,7 @@ import org.keycloak.authorization.AuthorizationProvider;
 import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
+import org.keycloak.exportimport.util.ExportUtils;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.UserModel;
@@ -85,7 +86,7 @@ public class ResourceServerService {
         if (this.resourceServer == null) {
             this.resourceServer = RepresentationToModel.createResourceServer(client, session, true);
             createDefaultPermission(createDefaultResource(), createDefaultPolicy());
-            audit(ModelToRepresentation.toRepresentation(resourceServer, client), OperationType.CREATE, session.getContext().getUri(), newClient);
+            audit(OperationType.CREATE, session.getContext().getUri(), newClient);
         }
 
         return resourceServer;
@@ -99,16 +100,14 @@ public class ResourceServerService {
         this.resourceServer.setAllowRemoteResourceManagement(server.isAllowRemoteResourceManagement());
         this.resourceServer.setPolicyEnforcementMode(server.getPolicyEnforcementMode());
         this.resourceServer.setDecisionStrategy(server.getDecisionStrategy());
-        audit(ModelToRepresentation.toRepresentation(resourceServer, client), OperationType.UPDATE, session.getContext().getUri(), false);
+        audit(OperationType.UPDATE, session.getContext().getUri(), false);
         return Response.noContent().build();
     }
 
     public void delete() {
         this.auth.realm().requireManageAuthorization();
-        //need to create representation before the object is deleted to be able to get lazy loaded fields
-        ResourceServerRepresentation rep = ModelToRepresentation.toRepresentation(resourceServer, client);
-        authorization.getStoreFactory().getResourceServerStore().delete(client);
-        audit(rep, OperationType.DELETE, session.getContext().getUri(), false);
+        authorization.getStoreFactory().getResourceServerStore().delete(resourceServer.getId());
+        audit(OperationType.DELETE, session.getContext().getUri(), false);
     }
 
     @GET
@@ -123,7 +122,7 @@ public class ResourceServerService {
     @Produces("application/json")
     public Response exportSettings() {
         this.auth.realm().requireManageAuthorization();
-        return Response.ok(ModelToRepresentation.toResourceServerRepresentation(session, client)).build();
+        return Response.ok(ExportUtils.exportAuthorizationSettings(session, client)).build();
     }
 
     @Path("/import")
@@ -134,9 +133,9 @@ public class ResourceServerService {
 
         rep.setClientId(client.getId());
 
-        resourceServer = RepresentationToModel.toModel(rep, authorization, client);
+        RepresentationToModel.toModel(rep, authorization);
 
-        audit(ModelToRepresentation.toRepresentation(resourceServer, client), OperationType.UPDATE, session.getContext().getUri(), false);
+        audit(OperationType.UPDATE, session.getContext().getUri(), false);
 
         return Response.noContent().build();
     }
@@ -225,13 +224,13 @@ public class ResourceServerService {
         return defaultResource;
     }
 
-    private void audit(ResourceServerRepresentation rep, OperationType operation, UriInfo uriInfo, boolean newClient) {
+    private void audit(OperationType operation, UriInfo uriInfo, boolean newClient) {
         if (newClient) {
             adminEvent.resource(ResourceType.AUTHORIZATION_RESOURCE_SERVER).operation(operation).resourcePath(uriInfo, client.getId())
-                    .representation(rep).success();
+                    .representation(ModelToRepresentation.toRepresentation(resourceServer, client)).success();
         } else {
             adminEvent.resource(ResourceType.AUTHORIZATION_RESOURCE_SERVER).operation(operation).resourcePath(uriInfo)
-                    .representation(rep).success();
+                    .representation(ModelToRepresentation.toRepresentation(resourceServer, client)).success();
         }
     }
 }

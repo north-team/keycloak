@@ -27,8 +27,8 @@ import org.keycloak.models.cache.infinispan.entities.CachedClient;
 import org.keycloak.models.utils.RoleUtils;
 
 import java.security.MessageDigest;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -99,22 +99,41 @@ public class ClientAdapter implements ClientModel, CachedObject {
 
     @Override
     public void addClientScope(ClientScopeModel clientScope, boolean defaultScope) {
-        cacheSession.addClientScopes(getRealm(), this, Collections.singleton(clientScope), defaultScope);
+        getDelegateForUpdate();
+        updated.addClientScope(clientScope, defaultScope);
     }
 
     @Override
     public void addClientScopes(Set<ClientScopeModel> clientScopes, boolean defaultScope) {
-        cacheSession.addClientScopes(getRealm(), this, clientScopes, defaultScope);
+        for (ClientScopeModel clientScope : clientScopes) {
+            addClientScope(clientScope, defaultScope);
+        }
     }
 
     @Override
     public void removeClientScope(ClientScopeModel clientScope) {
-        cacheSession.removeClientScope(getRealm(), this, clientScope);
+        getDelegateForUpdate();
+        updated.removeClientScope(clientScope);
     }
 
     @Override
-    public Map<String, ClientScopeModel> getClientScopes(boolean defaultScope) {
-        return cacheSession.getClientScopes(getRealm(), this, defaultScope);
+    public Map<String, ClientScopeModel> getClientScopes(boolean defaultScope, boolean filterByProtocol) {
+        if (isUpdated()) return updated.getClientScopes(defaultScope, filterByProtocol);
+        List<String> clientScopeIds = defaultScope ? cached.getDefaultClientScopesIds() : cached.getOptionalClientScopesIds();
+
+        // Defaults to openid-connect
+        String clientProtocol = getProtocol() == null ? "openid-connect" : getProtocol();
+
+        Map<String, ClientScopeModel> clientScopes = new HashMap<>();
+        for (String scopeId : clientScopeIds) {
+            ClientScopeModel clientScope = cacheSession.getClientScopeById(scopeId, cachedRealm);
+            if (clientScope != null) {
+                if (!filterByProtocol || clientScope.getProtocol().equals(clientProtocol)) {
+                    clientScopes.put(clientScope.getName(), clientScope);
+                }
+            }
+        }
+        return clientScopes;
     }
 
     public void addWebOrigin(String webOrigin) {
@@ -464,28 +483,28 @@ public class ClientAdapter implements ClientModel, CachedObject {
     }
 
     @Override
-    @Deprecated
     public Stream<String> getDefaultRolesStream() {
         if (isUpdated()) return updated.getDefaultRolesStream();
-        return getRealm().getDefaultRole().getCompositesStream().filter(this::isClientRole).map(RoleModel::getName);
-    }
-
-    private boolean isClientRole(RoleModel role) {
-        return role.isClientRole() && Objects.equals(role.getContainerId(), this.getId());
+        return cached.getDefaultRoles().stream();
     }
 
     @Override
-    @Deprecated
     public void addDefaultRole(String name) {
         getDelegateForUpdate();
         updated.addDefaultRole(name);
     }
 
     @Override
-    @Deprecated
+    public void updateDefaultRoles(String... defaultRoles) {
+        getDelegateForUpdate();
+        updated.updateDefaultRoles(defaultRoles);
+    }
+
+    @Override
     public void removeDefaultRoles(String... defaultRoles) {
         getDelegateForUpdate();
         updated.removeDefaultRoles(defaultRoles);
+
     }
 
     @Override
@@ -626,15 +645,6 @@ public class ClientAdapter implements ClientModel, CachedObject {
     }
 
     @Override
-    public boolean hasDirectScope(RoleModel role) {
-        if (isUpdated()) return updated.hasDirectScope(role);
-
-        if (cached.getScope().contains(role.getId())) return true;
-
-        return getRolesStream().anyMatch(r -> Objects.equals(r, role));
-    }
-
-    @Override
     public boolean hasScope(RoleModel role) {
         if (isUpdated()) return updated.hasScope(role);
         if (cached.isFullScopeAllowed() || cached.getScope().contains(role.getId())) return true;
@@ -642,7 +652,7 @@ public class ClientAdapter implements ClientModel, CachedObject {
         if (RoleUtils.hasRole(getScopeMappingsStream(), role))
             return true;
 
-        return RoleUtils.hasRole(getRolesStream(), role);
+        return getRolesStream().anyMatch(r -> (Objects.equals(r, role) || r.hasRole(role)));
     }
 
     @Override
@@ -657,10 +667,5 @@ public class ClientAdapter implements ClientModel, CachedObject {
     @Override
     public int hashCode() {
         return getId().hashCode();
-    }
-
-    @Override
-    public String toString() {
-        return String.format("%s@%08x", getClientId(), System.identityHashCode(this));
     }
 }

@@ -48,7 +48,6 @@ public class MigrationModelAdapter implements MigrationModel {
     }
 
     @Override
-    @Deprecated
     public String getResourcesTag() {
         return latest != null ? latest.getId() : null;
     }

@@ -19,6 +19,8 @@ package org.keycloak.models.dblock;
 
 import org.jboss.logging.Logger;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmProvider;
+import org.keycloak.models.RealmProviderFactory;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -33,6 +35,7 @@ public class DBLockManager {
         this.session = session;
     }
 
+
     public void checkForcedUnlock() {
         if (Boolean.getBoolean("keycloak.dblock.forceUnlock")) {
             DBLockProvider lock = getDBLock();
@@ -45,11 +48,21 @@ public class DBLockManager {
         }
     }
 
+
+    // Try to detect ID from realmProvider
     public DBLockProvider getDBLock() {
-        return session.getProvider(DBLockProvider.class);
+        String realmProviderId = getRealmProviderId();
+        return session.getProvider(DBLockProvider.class, realmProviderId);
     }
 
     public DBLockProviderFactory getDBLockFactory() {
-        return (DBLockProviderFactory) session.getKeycloakSessionFactory().getProviderFactory(DBLockProvider.class);
+        String realmProviderId = getRealmProviderId();
+        return (DBLockProviderFactory) session.getKeycloakSessionFactory().getProviderFactory(DBLockProvider.class, realmProviderId);
     }
+
+    private String getRealmProviderId() {
+        RealmProviderFactory realmProviderFactory = (RealmProviderFactory) session.getKeycloakSessionFactory().getProviderFactory(RealmProvider.class);
+        return realmProviderFactory.getId();
+    }
+
 }

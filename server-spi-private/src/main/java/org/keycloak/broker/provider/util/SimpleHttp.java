@@ -53,7 +53,6 @@ import java.io.StringWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -314,10 +313,10 @@ public class SimpleHttp {
             }
         }
 
-        return new UrlEncodedFormEntity(urlParameters, StandardCharsets.UTF_8);
+        return new UrlEncodedFormEntity(urlParameters);
     }
 
-    public static class Response implements AutoCloseable {
+    public static class Response {
 
         private final HttpResponse response;
         private int statusCode = -1;
@@ -346,7 +345,7 @@ public class SimpleHttp {
                             }
                         }
 
-                        try (InputStreamReader reader = charset == null ? new InputStreamReader(is, StandardCharsets.UTF_8) :
+                        try (InputStreamReader reader = charset == null ? new InputStreamReader(is) :
                                 new InputStreamReader(is, charset)) {
 
                             StringWriter writer = new StringWriter();

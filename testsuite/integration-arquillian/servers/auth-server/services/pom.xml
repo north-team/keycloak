@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-servers-auth-server</artifactId>
-        <version>999-SNAPSHOT</version>
+        <version>12.0.4</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -31,7 +31,6 @@
 
     <modules>
         <module>testsuite-providers</module>
-        <module>testsuite-providers-deployment</module>
     </modules>
 
 </project>

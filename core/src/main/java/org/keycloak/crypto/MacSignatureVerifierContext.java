@@ -36,13 +36,13 @@ public class MacSignatureVerifierContext implements SignatureVerifierContext {
 
     @Override
     public String getAlgorithm() {
-        return key.getAlgorithmOrDefault();
+        return key.getAlgorithm();
     }
 
     @Override
     public boolean verify(byte[] data, byte[] signature) throws VerificationException {
         try {
-            Mac mac = Mac.getInstance(JavaAlgorithm.getJavaAlgorithm(key.getAlgorithmOrDefault()));
+            Mac mac = Mac.getInstance(JavaAlgorithm.getJavaAlgorithm(key.getAlgorithm()));
             mac.init(key.getSecretKey());
             mac.update(data);
             byte[] verificationSignature = mac.doFinal();

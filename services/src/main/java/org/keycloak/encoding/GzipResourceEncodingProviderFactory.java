@@ -5,14 +5,10 @@ import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.common.Version;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.platform.Platform;
-import org.keycloak.provider.ProviderConfigProperty;
-import org.keycloak.provider.ProviderConfigurationBuilder;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 public class GzipResourceEncodingProviderFactory implements ResourceEncodingProviderFactory {
@@ -50,24 +46,12 @@ public class GzipResourceEncodingProviderFactory implements ResourceEncodingProv
         return "gzip";
     }
 
-    @Override
-    public List<ProviderConfigProperty> getConfigMetadata() {
-        return ProviderConfigurationBuilder.create()
-                .property()
-                .name("excludedContentTypes")
-                .type("string")
-                .helpText("A space separated list of content-types to exclude from encoding.")
-                .defaultValue("image/png image/jpeg")
-                .add()
-                .build();
-    }
-
     private synchronized File initCacheDir() {
         if (cacheDir != null) {
             return cacheDir;
         }
 
-        File cacheRoot = new File(Platform.getPlatform().getTmpDirectory(), "kc-gzip-cache");
+        File cacheRoot = new File(System.getProperty("java.io.tmpdir"), "kc-gzip-cache");
         File cacheDir = new File(cacheRoot, Version.RESOURCES_VERSION);
 
         if (cacheRoot.isDirectory()) {

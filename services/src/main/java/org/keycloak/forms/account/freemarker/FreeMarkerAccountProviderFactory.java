@@ -22,19 +22,23 @@ import org.keycloak.forms.account.AccountProvider;
 import org.keycloak.forms.account.AccountProviderFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.theme.FreeMarkerUtil;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
 public class FreeMarkerAccountProviderFactory implements AccountProviderFactory {
 
+    private FreeMarkerUtil freeMarker;
+
     @Override
     public AccountProvider create(KeycloakSession session) {
-        return new FreeMarkerAccountProvider(session);
+        return new FreeMarkerAccountProvider(session, freeMarker);
     }
 
     @Override
     public void init(Config.Scope config) {
+        freeMarker = new FreeMarkerUtil();
     }
 
     @Override
@@ -43,6 +47,7 @@ public class FreeMarkerAccountProviderFactory implements AccountProviderFactory 
     }
     @Override
     public void close() {
+        freeMarker = null;
     }
 
     @Override

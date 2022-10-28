@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.spi.Failure;
 import org.jboss.resteasy.spi.HttpResponse;
+import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.keycloak.Config;
 import org.keycloak.common.util.Resteasy;
 import org.keycloak.forms.login.freemarker.model.UrlBean;
@@ -14,12 +15,12 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.representations.idm.OAuth2ErrorRepresentation;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.messages.Messages;
+import org.keycloak.theme.FreeMarkerUtil;
 import org.keycloak.theme.Theme;
 import org.keycloak.theme.beans.LocaleBean;
 import org.keycloak.theme.beans.MessageBean;
 import org.keycloak.theme.beans.MessageFormatterMethod;
 import org.keycloak.theme.beans.MessageType;
-import org.keycloak.theme.freemarker.FreeMarkerProvider;
 import org.keycloak.utils.MediaType;
 import org.keycloak.utils.MediaTypeMatcher;
 
@@ -28,6 +29,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
+import javax.ws.rs.ext.Provider;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
@@ -43,7 +45,6 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
     private static final Pattern realmNamePattern = Pattern.compile(".*/realms/([^/]+).*");
 
     public static final String UNCAUGHT_SERVER_ERROR_TEXT = "Uncaught server error";
-    public static final String ERROR_RESPONSE_TEXT = "Error response {0}";
 
     @Context
     private HttpHeaders headers;
@@ -53,10 +54,6 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
 
     @Override
     public Response toResponse(Throwable throwable) {
-        return getResponse(headers, throwable);
-    }
-
-    public static Response getResponse(HttpHeaders headers, Throwable throwable) {
         KeycloakSession session = Resteasy.getContextData(KeycloakSession.class);
         KeycloakTransaction tx = session.getTransactionManager();
         tx.setRollbackOnly();
@@ -65,8 +62,6 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
 
         if (statusCode >= 500 && statusCode <= 599) {
             logger.error(UNCAUGHT_SERVER_ERROR_TEXT, throwable);
-        } else {
-            logger.debugv(throwable, ERROR_RESPONSE_TEXT, statusCode);
         }
 
         if (!MediaTypeMatcher.isHtmlRequest(headers)) {
@@ -87,7 +82,7 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
 
             Locale locale = session.getContext().resolveLocale(null);
 
-            FreeMarkerProvider freeMarker = session.getProvider(FreeMarkerProvider.class);
+            FreeMarkerUtil freeMarker = new FreeMarkerUtil();
             Map<String, Object> attributes = initAttributes(session, realm, theme, locale, statusCode);
 
             String templateName = "error.ftl";
@@ -100,7 +95,7 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
         }
     }
 
-    private static int getStatusCode(Throwable throwable) {
+    private int getStatusCode(Throwable throwable) {
         int status = Response.Status.INTERNAL_SERVER_ERROR.getStatusCode();
         if (throwable instanceof WebApplicationException) {
             WebApplicationException ex = (WebApplicationException) throwable;
@@ -121,7 +116,7 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
         return status;
     }
 
-    private static String getErrorCode(Throwable throwable) {
+    private String getErrorCode(Throwable throwable) {
         if (throwable instanceof WebApplicationException && throwable.getMessage() != null) {
             return throwable.getMessage();
         }
@@ -129,7 +124,7 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
         return "unknown_error";
     }
 
-    private static RealmModel resolveRealm(KeycloakSession session) {
+    private RealmModel resolveRealm(KeycloakSession session) {
         String path = session.getContext().getUri().getPath();
         Matcher m = realmNamePattern.matcher(path);
         String realmName;
@@ -150,7 +145,7 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
         return realm;
     }
 
-    private static Map<String, Object> initAttributes(KeycloakSession session, RealmModel realm, Theme theme, Locale locale, int statusCode) throws IOException {
+    private Map<String, Object> initAttributes(KeycloakSession session, RealmModel realm, Theme theme, Locale locale, int statusCode) throws IOException {
         Map<String, Object> attributes = new HashMap<>();
         Properties messagesBundle = theme.getMessages(locale);
 
@@ -158,7 +153,7 @@ public class KeycloakErrorHandler implements ExceptionMapper<Throwable> {
 
         attributes.put("realm", realm);
         attributes.put("url", new UrlBean(realm, theme, session.getContext().getUri().getBaseUri(), null));
-        attributes.put("locale", new LocaleBean(realm, locale, session.getContext().getUri().getRequestUriBuilder(), messagesBundle));
+        attributes.put("locale", new LocaleBean(realm, locale, session.getContext().getUri().getBaseUriBuilder(), messagesBundle));
 
 
         String errorKey = statusCode == 404 ? Messages.PAGE_NOT_FOUND : Messages.INTERNAL_SERVER_ERROR;

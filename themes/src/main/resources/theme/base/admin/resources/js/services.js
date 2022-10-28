@@ -387,14 +387,6 @@ module.factory('RealmSpecificLocalizationTexts', function($resource) {
     return $resource(authUrl + '/admin/realms/:id/localization/:locale', {
         id : '@realm',
         locale : '@locale'
-    }, {
-        get: {
-            isArray: false,
-                method: 'GET',
-                params: {
-                    useRealmDefaultLocaleFallback: '@useRealmDefaultLocaleFallback'
-                }
-        }
     });
 });
 
@@ -957,13 +949,15 @@ function clientSelectControl($scope, realm, Client) {
         delay: 500,
         allowClear: true,
         query: function (query) {
+            var data = {results: []};
             Client.query({realm: realm, search: true, clientId: query.term.trim(), max: 20}, function(response) {
-                query.callback({ results: response.map(function (client) {
-                        client.text = client.clientId;
-                        return client;
-                    })
-                });
+                data.results = response;
+                query.callback(data);
             });
+        },
+        formatResult: function(object, container, query) {
+            object.text = object.clientId;
+            return object.clientId;
         }
     };
 }
@@ -1023,7 +1017,7 @@ function roleControl($scope, $route, realm, role, roles, Client,
 
 
     clientSelectControl($scope, $route.current.params.realm, Client);
-
+    
     $scope.selectedClient = null;
 
 
@@ -1245,30 +1239,19 @@ module.factory('ClientEvaluateNotGrantedRoles', function($resource) {
     });
 });
 
-module.factory('ClientEvaluateGenerateExampleAccessToken', function($resource) {
-    return buildClientEvaluateGenerateExampleUrl('generate-example-access-token');
-});
-
-module.factory('ClientEvaluateGenerateExampleIDToken', function($resource) {
-    return buildClientEvaluateGenerateExampleUrl('generate-example-id-token');
-});
-
-module.factory('ClientEvaluateGenerateExampleUserInfo', function($resource) {
-    return buildClientEvaluateGenerateExampleUrl('generate-example-userinfo');
-});
-
-function buildClientEvaluateGenerateExampleUrl(subPath) {
-    var urlTemplate = authUrl + '/admin/realms/:realm/clients/:client/evaluate-scopes/' + subPath + '?scope=:scopeParam&userId=:userId';
+module.factory('ClientEvaluateGenerateExampleToken', function($resource) {
+    var url = authUrl + '/admin/realms/:realm/clients/:client/evaluate-scopes/generate-example-access-token?scope=:scopeParam&userId=:userId';
     return {
-        url: function (parameters) {
-            return urlTemplate
+        url : function(parameters)
+        {
+            return url
                 .replace(':realm', parameters.realm)
                 .replace(':client', parameters.client)
                 .replace(':scopeParam', parameters.scopeParam)
                 .replace(':userId', parameters.userId);
         }
     }
-}
+});
 
 module.factory('ClientProtocolMappersByProtocol', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/clients/:client/protocol-mappers/protocol/:protocol', {
@@ -1524,15 +1507,10 @@ module.factory('ClientSecret', function($resource) {
         realm : '@realm',
         client : '@client'
     },  {
-          update : {
-              method : 'POST'
-          },
-          invalidate: {
-              url:  authUrl + '/admin/realms/:realm/clients/:client/client-secret/rotated',
-              method: 'DELETE'
-          }
+        update : {
+            method : 'POST'
         }
-    );
+    });
 });
 
 module.factory('ClientRegistrationAccessToken', function($resource) {
@@ -1572,7 +1550,7 @@ module.factory('Current', function(Realm, $route, $rootScope) {
     };
 
     $rootScope.$on('$routeChangeStart', function() {
-        current.realms = Realm.query({briefRepresentation: true}, function(realms) {
+        current.realms = Realm.query(null, function(realms) {
             var currentRealm = null;
             if ($route.current.params.realm) {
                 for (var i = 0; i < realms.length; i++) {
@@ -1600,15 +1578,15 @@ module.factory('TimeUnit', function() {
         if (time % 60 == 0) {
             unit = 'Minutes';
             time  = time / 60;
-            if (time % 60 == 0) {
-                unit = 'Hours';
-                time = time / 60;
-                if (time % 24 == 0) {
-                    unit = 'Days';
-                }
-            }
         }
-
+        if (time % 60 == 0) {
+            unit = 'Hours';
+            time = time / 60;
+        }
+        if (time % 24 == 0) {
+            unit = 'Days'
+            time = time / 24;
+        }
         return unit;
     }
 
@@ -1653,14 +1631,14 @@ module.factory('TimeUnit2', function() {
                 if (time % 60 == 0) {
                     unit = 'Minutes';
                     time = time / 60;
-                    if (time % 60 == 0) {
-                        unit = 'Hours';
-                        time = time / 60;
-                        if (time % 24 == 0) {
-                            unit = 'Days';
-                            time = time / 24;
-                        }
-                    }
+                }
+                if (time % 60 == 0) {
+                    unit = 'Hours';
+                    time = time / 60;
+                }
+                if (time % 24 == 0) {
+                    unit = 'Days'
+                    time = time / 24;
                 }
             }
         }
@@ -2123,16 +2101,6 @@ module.factory('UserGroupMapping', function($resource) {
     });
 });
 
-module.factory('UserProfile', function($resource) {
-    return $resource(authUrl + '/admin/realms/:realm/users/profile', {
-        realm : '@realm'
-    }, {
-        update : {
-            method : 'PUT'
-        }
-    });
-});
-
 module.factory('DefaultGroups', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/default-groups/:groupId', {
         realm : '@realm',
@@ -2216,27 +2184,6 @@ module.factory('ClientStorageOperations', function($resource) {
 module.factory('ClientRegistrationPolicyProviders', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/client-registration-policy/providers', {
         realm : '@realm',
-    });
-});
-
-module.factory('ClientPoliciesProfiles', function($resource) {
-    return $resource(authUrl + '/admin/realms/:realm/client-policies/profiles?include-global-profiles=:includeGlobalProfiles', {
-        realm : '@realm',
-        includeGlobalProfiles : '@includeGlobalProfiles'
-    }, {
-       update : {
-           method : 'PUT'
-       }
-    });
-});
-
-module.factory('ClientPolicies', function($resource) {
-    return $resource(authUrl + '/admin/realms/:realm/client-policies/policies', {
-        realm : '@realm',
-    }, {
-       update : {
-           method : 'PUT'
-       }
     });
 });
 

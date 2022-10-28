@@ -58,7 +58,7 @@ public class X509BrowserCRLTest extends AbstractX509AuthenticationTest {
 
     @Test
     public void loginSuccessWithEmptyRevocationListFromFile() {
-        // Not possible to test file CRL on undertow at this moment - jboss config dir doesn't exist
+        // Not possible to test file CRL on undertow at this moment - jboss config dir doesn't exists
         ContainerAssume.assumeNotAuthServerUndertow();
 
         X509AuthenticatorConfigModel config =
@@ -74,7 +74,7 @@ public class X509BrowserCRLTest extends AbstractX509AuthenticationTest {
 
     @Test
     public void loginFailedWithIntermediateRevocationListFromFile() {
-        // Not possible to test file CRL on undertow at this moment - jboss config dir doesn't exist
+        // Not possible to test file CRL on undertow at this moment - jboss config dir doesn't exists
         ContainerAssume.assumeNotAuthServerUndertow();
 
         X509AuthenticatorConfigModel config =
@@ -136,7 +136,7 @@ public class X509BrowserCRLTest extends AbstractX509AuthenticationTest {
         Assert.assertNotNull(cfgId);
 
         // Verify there is an error message because of invalid CRL signature
-        assertLoginFailedWithExpectedX509Error("Certificate validation's failed.\nCertificate revoked or incorrect.");
+        assertLoginFailedWithExpectedX509Error("Certificate validation's failed.\nSignature length not correct");
     }
 
 
@@ -194,7 +194,7 @@ public class X509BrowserCRLTest extends AbstractX509AuthenticationTest {
 
 
     private void assertLoginFailedDueRevokedCertificate() {
-        assertLoginFailedWithExpectedX509Error("Certificate validation's failed.\nCertificate revoked or incorrect.");
+        assertLoginFailedWithExpectedX509Error("Certificate validation's failed.\nCertificate has been revoked, certificate's subject:");
     }
 
     private void assertLoginFailedWithExpectedX509Error(String expectedError) {

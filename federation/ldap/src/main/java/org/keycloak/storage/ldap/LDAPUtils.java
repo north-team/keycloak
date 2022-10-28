@@ -24,9 +24,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.naming.directory.SearchControls;
@@ -58,34 +56,12 @@ import org.keycloak.storage.ldap.mappers.membership.MembershipType;
 public class LDAPUtils {
 
     /**
-     * Method to crate a user in the LDAP. The user will be created when all
-     * mandatory attributes specified by the mappers are set. The method
-     * onRegisterUserToLDAP is first called in each mapper to set any default or
-     * initial value.
-     *
-     * @param ldapProvider The ldap provider
-     * @param realm The realm of the user
-     * @param user The user model
-     * @return The LDAPObject created or to be created when mandatory attributes are filled
+     * @param ldapProvider
+     * @param realm
+     * @param user
+     * @return newly created LDAPObject with all the attributes, uuid and DN properly set
      */
     public static LDAPObject addUserToLDAP(LDAPStorageProvider ldapProvider, RealmModel realm, UserModel user) {
-        return addUserToLDAP(ldapProvider, realm, user, null);
-    }
-
-    /**
-     * Method that creates a user in the LDAP when all the attributes marked as
-     * mandatory by the mappers are set. The method onRegisterUserToLDAP is
-     * first called in each mapper to set any default or initial value. When
-     * the user is finally created the passed consumerOnCreated parameter is
-     * executed (can be null).
-     *
-     * @param ldapProvider The ldap provider
-     * @param realm The realm of the user
-     * @param user The user model
-     * @param consumerOnCreated The consumer to execute when the user is created
-     * @return The LDAPObject created or to be created when mandatory attributes are filled
-     */
-    public static LDAPObject addUserToLDAP(LDAPStorageProvider ldapProvider, RealmModel realm, UserModel user, Consumer<LDAPObject> consumerOnCreated) {
         LDAPObject ldapUser = new LDAPObject();
 
         LDAPIdentityStore ldapStore = ldapProvider.getLdapIdentityStore();
@@ -94,25 +70,15 @@ public class LDAPUtils {
         ldapUser.setObjectClasses(ldapConfig.getUserObjectClasses());
 
         LDAPMappersComparator ldapMappersComparator = new LDAPMappersComparator(ldapConfig);
-        Set<String> mandatoryAttrs = realm.getComponentsStream(ldapProvider.getModel().getId(), LDAPStorageMapper.class.getName())
+        realm.getComponentsStream(ldapProvider.getModel().getId(), LDAPStorageMapper.class.getName())
                 .sorted(ldapMappersComparator.sortAsc())
-                .map(mapperModel -> {
+                .forEachOrdered(mapperModel -> {
                     LDAPStorageMapper ldapMapper = ldapProvider.getMapperManager().getMapper(mapperModel);
                     ldapMapper.onRegisterUserToLDAP(ldapUser, user, realm);
-                    return ldapMapper.mandatoryAttributeNames();
-                })
-                .filter(Objects::nonNull)
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
-        mandatoryAttrs.add(ldapConfig.getRdnLdapAttribute());
+                });
 
-        ldapUser.executeOnMandatoryAttributesComplete(mandatoryAttrs, ldapObject -> {
-            LDAPUtils.computeAndSetDn(ldapConfig, ldapObject);
-            ldapStore.add(ldapObject);
-            if (consumerOnCreated != null) {
-                consumerOnCreated.accept(ldapObject);
-            }
-        });
+        LDAPUtils.computeAndSetDn(ldapConfig, ldapUser);
+        ldapStore.add(ldapUser);
         return ldapUser;
     }
 
@@ -357,7 +323,7 @@ public class LDAPUtils {
                     @Override
                     public boolean methodMatches(Method m) {
                         if ((m.getName().startsWith("get") || m.getName().startsWith("is"))
-                                && m.getParameterCount() > 0) {
+                                && m.getParameterTypes().length > 0) {
                             return false;
                         }
 

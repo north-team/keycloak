@@ -27,7 +27,6 @@ import org.keycloak.storage.user.SynchronizationResult;
 
 import javax.naming.AuthenticationException;
 import java.util.List;
-import java.util.Set;
 import org.keycloak.models.RoleModel;
 import org.keycloak.storage.ldap.LDAPStorageProvider;
 
@@ -86,13 +85,6 @@ public interface LDAPStorageMapper extends Provider {
      */
     void onRegisterUserToLDAP(LDAPObject ldapUser, UserModel localUser, RealmModel realm);
 
-    /**
-     * Method that returns the mandatory attributes that this mapper imposes
-     * on the entry.
-     *
-     * @return The list of mandatory attributes or null
-     */
-    Set<String> mandatoryAttributeNames();
 
     /**
      * Called when invoke proxy on LDAP federation provider

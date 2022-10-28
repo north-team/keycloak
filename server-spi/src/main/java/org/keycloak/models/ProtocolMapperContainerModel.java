@@ -27,8 +27,17 @@ import java.util.stream.Stream;
  */
 public interface ProtocolMapperContainerModel {
     /**
+     * @deprecated Use {@link #getProtocolMappersStream() getProtocolMappersStream} instead.
+     * @return Set of protocol mappers
+     */
+    @Deprecated
+    default Set<ProtocolMapperModel> getProtocolMappers() {
+        return getProtocolMappersStream().collect(Collectors.toSet());
+    }
+
+    /**
      * Returns protocol mappers as a stream.
-     * @return Stream of protocol mapper. Never returns {@code null}.
+     * @return Stream of protocol mapper.
      */
     Stream<ProtocolMapperModel> getProtocolMappersStream();
 

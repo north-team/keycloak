@@ -20,7 +20,6 @@ import io.quarkus.test.QuarkusUnitTest;
 import org.hamcrest.Matchers;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -33,7 +32,8 @@ public class KeycloakReadyHealthCheckTest {
     @RegisterExtension
     static final QuarkusUnitTest test = new QuarkusUnitTest()
             .setArchiveProducer(() -> ShrinkWrap.create(JavaArchive.class)
-                    .addAsResource("keycloak.conf", "META-INF/keycloak.conf"));
+                    .addAsResource("application.properties", "application.properties")
+                    .addAsResource("keycloak.properties", "META-INF/keycloak.properties"));
 
     @Test
     public void testLivenessUp() {
@@ -51,5 +51,13 @@ public class KeycloakReadyHealthCheckTest {
             .then()
                 .statusCode(200)
                 .body(Matchers.containsString("UP"));
+    }
+
+    @Test
+    public void testMetricsUp() {
+        given()
+            .when().get("/metrics")
+            .then()
+                .statusCode(200);
     }
 }

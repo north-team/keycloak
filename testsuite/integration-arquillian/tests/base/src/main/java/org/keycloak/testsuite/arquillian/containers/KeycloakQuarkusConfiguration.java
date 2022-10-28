@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import org.jboss.arquillian.container.spi.ConfigurationException;
 import org.jboss.arquillian.container.spi.client.container.ContainerConfiguration;
 import org.jboss.logging.Logger;
-import org.keycloak.common.crypto.FipsMode;
 import org.keycloak.util.JsonSerialization;
 
 import java.io.IOException;
@@ -23,22 +22,7 @@ public class KeycloakQuarkusConfiguration implements ContainerConfiguration {
     private int bindHttpPortOffset = 100;
     private int bindHttpPort = 8080;
     private int bindHttpsPortOffset = 0;
-    private int bindHttpsPort = Integer.getInteger("auth.server.https.port", 8543);
-
-    private String keystoreFile = System.getProperty("auth.server.keystore");
-
-    private String keystorePassword = System.getProperty("auth.server.keystore.password");
-
-    private String keystoreType = System.getProperty("auth.server.keystore.type");
-
-
-    private String truststoreFile = System.getProperty("auth.server.truststore");
-
-    private String truststorePassword = System.getProperty("auth.server.truststore.password");
-
-    private String truststoreType = System.getProperty("auth.server.truststore.type");
-
-    private int debugPort = -1;
+    private int bindHttpsPort = Integer.valueOf(System.getProperty("auth.server.https.port", "8543"));
     private Path providersPath = Paths.get(System.getProperty("auth.server.home"));
     private int startupTimeoutInSeconds = 300;
     private String route;
@@ -47,9 +31,6 @@ public class KeycloakQuarkusConfiguration implements ContainerConfiguration {
     private String profile;
     private String javaOpts;
     private boolean reaugmentBeforeStart;
-    private String importFile = System.getProperty("migration.import.file.name");
-
-    private FipsMode fipsMode = FipsMode.valueOf(System.getProperty("auth.server.fips.mode"));
 
     @Override
     public void validate() throws ConfigurationException {
@@ -105,54 +86,6 @@ public class KeycloakQuarkusConfiguration implements ContainerConfiguration {
         this.bindHttpPort = bindHttpPort;
     }
 
-    public String getKeystoreFile() {
-        return keystoreFile;
-    }
-
-    public void setKeystoreFile(String keystoreFile) {
-        this.keystoreFile = keystoreFile;
-    }
-
-    public String getKeystorePassword() {
-        return keystorePassword;
-    }
-
-    public void setKeystorePassword(String keystorePassword) {
-        this.keystorePassword = keystorePassword;
-    }
-
-    public String getKeystoreType() {
-        return keystoreType;
-    }
-
-    public void setKeystoreType(String keystoreType) {
-        this.keystoreType = keystoreType;
-    }
-
-    public String getTruststoreFile() {
-        return truststoreFile;
-    }
-
-    public void setTruststoreFile(String truststoreFile) {
-        this.truststoreFile = truststoreFile;
-    }
-
-    public String getTruststorePassword() {
-        return truststorePassword;
-    }
-
-    public void setTruststorePassword(String truststorePassword) {
-        this.truststorePassword = truststorePassword;
-    }
-
-    public String getTruststoreType() {
-        return truststoreType;
-    }
-
-    public void setTruststoreType(String truststoreType) {
-        this.truststoreType = truststoreType;
-    }
-
     public Path getProvidersPath() {
         return providersPath;
     }
@@ -205,43 +138,11 @@ public class KeycloakQuarkusConfiguration implements ContainerConfiguration {
         return javaOpts;
     }
 
-    public void appendJavaOpts(String javaOpts) {
-        if (javaOpts == null) {
-            setJavaOpts(javaOpts);
-        } else {
-            setJavaOpts(this.javaOpts + " " + javaOpts);
-        }
-    }
-
     public boolean isReaugmentBeforeStart() {
         return reaugmentBeforeStart;
     }
 
     public void setReaugmentBeforeStart(boolean reaugmentBeforeStart) {
         this.reaugmentBeforeStart = reaugmentBeforeStart;
-    }
-
-    public int getDebugPort() {
-        return debugPort;
-    }
-
-    public void setDebugPort(int debugPort) {
-        this.debugPort = debugPort;
-    }
-
-    public String getImportFile() {
-        return importFile;
-    }
-
-    public void setImportFile(String importFile) {
-        this.importFile = importFile;
-    }
-
-    public FipsMode getFipsMode() {
-        return fipsMode;
-    }
-
-    public void setFipsMode(FipsMode fipsMode) {
-        this.fipsMode = fipsMode;
     }
 }

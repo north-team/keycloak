@@ -39,11 +39,9 @@ import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.provider.ProviderConfigurationBuilder;
 import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.storage.UserStoragePrivateUtil;
 import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.UserStorageProviderFactory;
 import org.keycloak.storage.UserStorageProviderModel;
-import org.keycloak.storage.UserStorageUtil;
 import org.keycloak.storage.ldap.idm.model.LDAPObject;
 import org.keycloak.storage.ldap.idm.query.Condition;
 import org.keycloak.storage.ldap.idm.query.internal.LDAPQuery;
@@ -66,7 +64,6 @@ import org.keycloak.utils.CredentialHelper;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -281,18 +278,6 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
 
         if(cfg.isStartTls() && cfg.getConnectionPooling() != null) {
             throw new ComponentValidationException("ldapErrorCantEnableStartTlsAndConnectionPooling");
-        }
-
-        // editMode is mandatory
-        if (config.get(LDAPConstants.EDIT_MODE) == null) {
-            throw new ComponentValidationException("ldapErrorEditModeMandatory");
-        }
-
-        // validatePasswordPolicy applicable only for WRITABLE mode
-        if (cfg.getEditMode() != UserStorageProvider.EditMode.WRITABLE) {
-            if (cfg.isValidatePasswordPolicy()) {
-                throw new ComponentValidationException("ldapErrorValidatePasswordPolicyAvailableForWritableOnly");
-            }
         }
 
         if (!userStorageModel.isImportEnabled() && cfg.getEditMode() == UserStorageProvider.EditMode.UNSYNCED) {
@@ -608,18 +593,16 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
                         String username = LDAPUtils.getUsername(ldapUser, ldapFedProvider.getLdapIdentityStore().getConfig());
                         exists.value = true;
                         LDAPUtils.checkUuid(ldapUser, ldapFedProvider.getLdapIdentityStore().getConfig());
-                        UserModel currentUserLocal = UserStoragePrivateUtil.userLocalStorage(session).getUserByUsername(currentRealm, username);
-                        Optional<UserModel> userModelOptional = UserStoragePrivateUtil.userLocalStorage(session)
-                                .searchForUserByUserAttributeStream(currentRealm, LDAPConstants.LDAP_ID, ldapUser.getUuid())
-                                .findFirst();
-                        if (!userModelOptional.isPresent() && currentUserLocal == null) {
+                        UserModel currentUser = session.userLocalStorage().getUserByUsername(username, currentRealm);
+
+                        if (currentUser == null) {
+
                             // Add new user to Keycloak
                             exists.value = false;
                             ldapFedProvider.importUserFromLDAP(session, currentRealm, ldapUser);
                             syncResult.increaseAdded();
 
                         } else {
-                            UserModel currentUser = userModelOptional.isPresent() ? userModelOptional.get() : currentUserLocal;
                             if ((fedModel.getId().equals(currentUser.getFederationLink())) && (ldapUser.getUuid().equals(currentUser.getFirstAttribute(LDAPConstants.LDAP_ID)))) {
 
                                 // Update keycloak user
@@ -631,14 +614,14 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
                                             ldapMapper.onImportUserFromLDAP(ldapUser, currentUser, currentRealm, false);
                                         });
 
-                                UserCache userCache = UserStorageUtil.userCache(session);
+                                UserCache userCache = session.userCache();
                                 if (userCache != null) {
                                     userCache.evict(currentRealm, currentUser);
                                 }
                                 logger.debugf("Updated user from LDAP: %s", currentUser.getUsername());
                                 syncResult.increaseUpdated();
                             } else {
-                                logger.warnf("User with ID '%s' is not updated during sync as he already exists in Keycloak database but is not linked to federation provider '%s'", ldapUser.getUuid(), fedModel.getName());
+                                logger.warnf("User '%s' is not updated during sync as he already exists in Keycloak database but is not linked to federation provider '%s'", username, fedModel.getName());
                                 syncResult.increaseFailed();
                             }
                         }
@@ -666,13 +649,13 @@ public class LDAPStorageProviderFactory implements UserStorageProviderFactory<LD
                             }
 
                             if (username != null) {
-                                UserModel existing = UserStoragePrivateUtil.userLocalStorage(session).getUserByUsername(currentRealm, username);
+                                UserModel existing = session.userLocalStorage().getUserByUsername(username, currentRealm);
                                 if (existing != null) {
-                                    UserCache userCache = UserStorageUtil.userCache(session);
+                                    UserCache userCache = session.userCache();
                                     if (userCache != null) {
                                         userCache.evict(currentRealm, existing);
                                     }
-                                    UserStoragePrivateUtil.userLocalStorage(session).removeUser(currentRealm, existing);
+                                    session.userLocalStorage().removeUser(currentRealm, existing);
                                 }
                             }
                         }

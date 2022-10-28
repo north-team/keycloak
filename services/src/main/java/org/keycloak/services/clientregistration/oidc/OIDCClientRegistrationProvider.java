@@ -20,12 +20,10 @@ import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.ClientModel;
-import org.keycloak.models.ClientSecretConstants;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.models.utils.RepresentationToModel;
-import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
 import org.keycloak.protocol.oidc.mappers.AbstractPairwiseSubMapper;
 import org.keycloak.protocol.oidc.mappers.PairwiseSubMapperHelper;
 import org.keycloak.protocol.oidc.mappers.SHA256PairwiseSubMapper;
@@ -81,10 +79,6 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
                 client.setAuthorizationServicesEnabled(true);
             }
 
-            if (!(grantTypes == null || grantTypes.contains(OAuth2Constants.REFRESH_TOKEN))) {
-                OIDCAdvancedConfigWrapper.fromClientRepresentation(client).setUseRefreshToken(false);
-            }
-
             OIDCClientRegistrationContext oidcContext = new OIDCClientRegistrationContext(session, client, this, clientOIDC);
             client = create(oidcContext);
 
@@ -130,10 +124,6 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
             updatePairwiseSubMappers(clientModel, SubjectType.parse(clientOIDC.getSubjectType()), clientOIDC.getSectorIdentifierUri());
             updateClientRepWithProtocolMappers(clientModel, client);
 
-            client.setSecret(clientModel.getSecret());
-            client.getAttributes().put(ClientSecretConstants.CLIENT_SECRET_EXPIRATION,clientModel.getAttribute(ClientSecretConstants.CLIENT_SECRET_EXPIRATION));
-            client.getAttributes().put(ClientSecretConstants.CLIENT_SECRET_CREATION_TIME,clientModel.getAttribute(ClientSecretConstants.CLIENT_SECRET_CREATION_TIME));
-
             validateClient(clientModel, clientOIDC, false);
 
             URI uri = session.getContext().getUri().getAbsolutePathBuilder().path(client.getClientId()).build();
@@ -164,7 +154,7 @@ public class OIDCClientRegistrationProvider extends AbstractClientRegistrationPr
                 } else {
                     return false;
                 }
-            }).collect(Collectors.toList()).forEach((ProtocolMapperModel mapping) -> {
+            }).forEach((ProtocolMapperModel mapping) -> {
                 PairwiseSubMapperHelper.setSectorIdentifierUri(mapping, sectorIdentifierUri);
                 clientModel.updateProtocolMapper(mapping);
             });

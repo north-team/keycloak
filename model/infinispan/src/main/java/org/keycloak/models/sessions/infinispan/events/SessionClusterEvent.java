@@ -20,12 +20,10 @@ package org.keycloak.models.sessions.infinispan.events;
 import org.keycloak.cluster.ClusterEvent;
 import org.keycloak.connections.infinispan.TopologyInfo;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.connections.infinispan.InfinispanUtil;
+import org.keycloak.models.sessions.infinispan.util.InfinispanUtil;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.Objects;
-
 import org.infinispan.commons.marshall.MarshallUtil;
 
 /**
@@ -79,19 +77,6 @@ public abstract class SessionClusterEvent implements ClusterEvent {
 
     public String getNodeId() {
         return nodeId;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SessionClusterEvent that = (SessionClusterEvent) o;
-        return Objects.equals(realmId, that.realmId) && Objects.equals(eventKey, that.eventKey);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(realmId, eventKey);
     }
 
     @Override

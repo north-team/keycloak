@@ -17,9 +17,8 @@
 
 package org.keycloak.common.util;
 
-import org.keycloak.common.crypto.CryptoIntegration;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-import java.security.Provider;
 import java.security.Security;
 
 /**
@@ -27,16 +26,11 @@ import java.security.Security;
  * @version $Revision: 1 $
  */
 public class BouncyIntegration {
-
-    public static final String PROVIDER = loadProvider();
-
-    private static String loadProvider() {
-        Provider provider = CryptoIntegration.getProvider().getBouncyCastleProvider();
-        if (provider == null) {
-            return Security.getProviders()[0].getName();
-            // throw new RuntimeException("Failed to load required security provider: BouncyCastleProvider or BouncyCastleFipsProvider");
-        }
-        return provider.getName();
+    static {
+        if (Security.getProvider("BC") == null) Security.addProvider(new BouncyCastleProvider());
     }
 
+    public static void init() {
+        // empty, the static class does it
+    }
 }

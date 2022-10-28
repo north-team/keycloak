@@ -23,22 +23,17 @@ import org.keycloak.component.ComponentModel;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
-import org.keycloak.models.CibaConfig;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.IdentityProviderModel;
-import org.keycloak.models.OAuth2DeviceConfig;
 import org.keycloak.models.OTPPolicy;
-import org.keycloak.models.ParConfig;
 import org.keycloak.models.PasswordPolicy;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RequiredActionProviderModel;
 import org.keycloak.models.RequiredCredentialModel;
 import org.keycloak.models.WebAuthnPolicy;
-import org.keycloak.models.cache.infinispan.DefaultLazyLoader;
-import org.keycloak.models.cache.infinispan.LazyLoader;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -102,9 +96,6 @@ public class CachedRealm extends AbstractExtendableRevisioned {
     protected int accessCodeLifespan;
     protected int accessCodeLifespanUserAction;
     protected int accessCodeLifespanLogin;
-    protected LazyLoader<RealmModel, OAuth2DeviceConfig> deviceConfig;
-    protected LazyLoader<RealmModel, CibaConfig> cibaConfig;
-    protected LazyLoader<RealmModel, ParConfig> parConfig;
     protected int actionTokenGeneratedByAdminLifespan;
     protected int actionTokenGeneratedByUserLifespan;
     protected int notBefore;
@@ -151,7 +142,7 @@ public class CachedRealm extends AbstractExtendableRevisioned {
     protected boolean adminEventsEnabled;
     protected Set<String> adminEnabledEventOperations = new HashSet<>();
     protected boolean adminEventsDetailsEnabled;
-    protected String defaultRoleId;
+    protected List<String> defaultRoles;
     private boolean allowUserManagedAccess;
 
     public Set<IdentityProviderMapperModel> getIdentityProviderMapperSet() {
@@ -220,9 +211,6 @@ public class CachedRealm extends AbstractExtendableRevisioned {
         accessTokenLifespan = model.getAccessTokenLifespan();
         accessTokenLifespanForImplicitFlow = model.getAccessTokenLifespanForImplicitFlow();
         accessCodeLifespan = model.getAccessCodeLifespan();
-        deviceConfig = new DefaultLazyLoader<>(OAuth2DeviceConfig::new, null);
-        cibaConfig = new DefaultLazyLoader<>(CibaConfig::new, null);
-        parConfig = new DefaultLazyLoader<>(ParConfig::new, null);
         accessCodeLifespanUserAction = model.getAccessCodeLifespanUserAction();
         accessCodeLifespanLogin = model.getAccessCodeLifespanLogin();
         actionTokenGeneratedByAdminLifespan = model.getActionTokenGeneratedByAdminLifespan();
@@ -263,7 +251,7 @@ public class CachedRealm extends AbstractExtendableRevisioned {
         adminEventsEnabled = model.isAdminEventsEnabled();
         adminEventsDetailsEnabled = model.isAdminEventsDetailsEnabled();
 
-        defaultRoleId = model.getDefaultRole().getId();
+        defaultRoles = model.getDefaultRolesStream().collect(Collectors.toList());
         ClientModel masterAdminClient = model.getMasterAdminClient();
         this.masterAdminClient = (masterAdminClient != null) ? masterAdminClient.getId() : null;
 
@@ -330,10 +318,6 @@ public class CachedRealm extends AbstractExtendableRevisioned {
         return masterAdminClient;
     }
 
-    public String getDefaultRoleId() {
-        return defaultRoleId;
-    }
-
     public String getName() {
         return name;
     }
@@ -344,6 +328,10 @@ public class CachedRealm extends AbstractExtendableRevisioned {
 
     public String getDisplayNameHtml() {
         return displayNameHtml;
+    }
+
+    public List<String> getDefaultRoles() {
+        return defaultRoles;
     }
 
     public boolean isEnabled() {
@@ -497,18 +485,6 @@ public class CachedRealm extends AbstractExtendableRevisioned {
 
     public int getAccessCodeLifespanLogin() {
         return accessCodeLifespanLogin;
-    }
-
-    public OAuth2DeviceConfig getOAuth2DeviceConfig(Supplier<RealmModel> modelSupplier) {
-        return deviceConfig.get(modelSupplier);
-    }
-
-    public CibaConfig getCibaConfig(Supplier<RealmModel> modelSupplier) {
-        return cibaConfig.get(modelSupplier);
-    }
-
-    public ParConfig getParConfig(Supplier<RealmModel> modelSupplier) {
-        return parConfig.get(modelSupplier);
     }
 
     public int getActionTokenGeneratedByAdminLifespan() {
@@ -725,17 +701,17 @@ public class CachedRealm extends AbstractExtendableRevisioned {
 
     public Integer getAttribute(String name, Integer defaultValue) {
         String v = getAttribute(name);
-        return v != null ? Integer.valueOf(v) : defaultValue;
+        return v != null ? Integer.parseInt(v) : defaultValue;
     }
 
     public Long getAttribute(String name, Long defaultValue) {
         String v = getAttribute(name);
-        return v != null ? Long.valueOf(v) : defaultValue;
+        return v != null ? Long.parseLong(v) : defaultValue;
     }
 
     public Boolean getAttribute(String name, Boolean defaultValue) {
         String v = getAttribute(name);
-        return v != null ? Boolean.valueOf(v) : defaultValue;
+        return v != null ? Boolean.parseBoolean(v) : defaultValue;
     }
 
     public Map<String, String> getAttributes() {

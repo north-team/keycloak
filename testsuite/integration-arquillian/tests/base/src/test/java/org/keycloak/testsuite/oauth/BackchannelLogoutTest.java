@@ -529,7 +529,8 @@ public class BackchannelLogoutTest extends AbstractNestedBrokerTest {
 
         assertNoSessionsInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm,
                 sessionIdConsumerRealm);
-        assertNoOfflineSessionsInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm);
+        assertNoOfflineSessionsInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm,
+                sessionIdConsumerRealm);
         assertNoSessionsInClient(nbc.subConsumerRealmName(), accountClientIdSubConsumerRealm, userIdSubConsumerRealm,
                 sessionIdSubConsumerRealm);
         assertActiveSessionInClient(nbc.providerRealmName(), brokerClientIdProviderRealm, userIdProviderRealm,
@@ -569,7 +570,8 @@ public class BackchannelLogoutTest extends AbstractNestedBrokerTest {
 
         assertNoSessionsInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm,
                 sessionIdConsumerRealm);
-        assertActiveOfflineSessionInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm);
+        assertActiveOfflineSessionInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm,
+                sessionIdConsumerRealm);
         assertNoSessionsInClient(nbc.subConsumerRealmName(), accountClientIdSubConsumerRealm, userIdSubConsumerRealm,
                 sessionIdSubConsumerRealm);
         assertActiveSessionInClient(nbc.providerRealmName(), brokerClientIdProviderRealm, userIdProviderRealm,
@@ -594,7 +596,8 @@ public class BackchannelLogoutTest extends AbstractNestedBrokerTest {
         logoutFromRealm(getConsumerRoot(), nbc.consumerRealmName());
         assertNoSessionsInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm,
                 sessionIdConsumerRealm);
-        assertActiveOfflineSessionInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm);
+        assertActiveOfflineSessionInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm,
+                sessionIdConsumerRealm);
 
         String logoutTokenEncoded = getLogoutTokenEncodedAndSigned(userIdProviderRealm, sessionIdProviderRealm, true);
         
@@ -603,7 +606,8 @@ public class BackchannelLogoutTest extends AbstractNestedBrokerTest {
             assertThat(response, Matchers.statusCodeIsHC(Response.Status.OK));
         }
         
-        assertNoOfflineSessionsInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm);
+        assertNoOfflineSessionsInClient(nbc.consumerRealmName(), consumerClientId, userIdConsumerRealm,
+                sessionIdConsumerRealm);
     }
 
     private void subConsumerIdpRequestsOfflineSessions() {
@@ -786,23 +790,25 @@ public class BackchannelLogoutTest extends AbstractNestedBrokerTest {
                 .collect(Collectors.toList());
     }
 
-    private void assertActiveOfflineSessionInClient(String realmName, String clientId, String userId) {
-        List<UserSessionRepresentation> sessions = getOfflineClientSessions(realmName, clientId, userId);
+    private void assertActiveOfflineSessionInClient(String realmName, String clientId, String userId,
+            String sessionId) {
+        List<UserSessionRepresentation> sessions = getOfflineClientSessions(realmName, clientId, userId, sessionId);
         assertThat(sessions.size(), is(1));
     }
 
-    private void assertNoOfflineSessionsInClient(String realmName, String clientId, String userId) {
-        List<UserSessionRepresentation> sessions = getOfflineClientSessions(realmName, clientId, userId);
+    private void assertNoOfflineSessionsInClient(String realmName, String clientId, String userId, String sessionId) {
+        List<UserSessionRepresentation> sessions = getOfflineClientSessions(realmName, clientId, userId, sessionId);
         assertThat(sessions.size(), is(0));
     }
 
-    private List<UserSessionRepresentation> getOfflineClientSessions(String realmName, String clientUuid, String userId) {
+    private List<UserSessionRepresentation> getOfflineClientSessions(String realmName, String clientUuid, String userId,
+            String sessionId) {
         return adminClient.realm(realmName)
                 .clients()
                 .get(clientUuid)
                 .getOfflineUserSessions(0, 5)
                 .stream()
-                .filter(s -> s.getUserId().equals(userId))
+                .filter(s -> s.getUserId().equals(userId) && s.getId().equals(sessionId))
                 .collect(Collectors.toList());
     }
 

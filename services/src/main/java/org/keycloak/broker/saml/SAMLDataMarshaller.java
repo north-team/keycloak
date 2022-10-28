@@ -20,7 +20,6 @@ package org.keycloak.broker.saml;
 import org.keycloak.broker.provider.DefaultDataMarshaller;
 import org.keycloak.dom.saml.v2.assertion.AssertionType;
 import org.keycloak.dom.saml.v2.assertion.AuthnStatementType;
-import org.keycloak.dom.saml.v2.protocol.ArtifactResponseType;
 import org.keycloak.dom.saml.v2.protocol.ResponseType;
 import org.keycloak.saml.common.constants.GeneralConstants;
 import org.keycloak.saml.common.exceptions.ParsingException;
@@ -59,10 +58,6 @@ public class SAMLDataMarshaller extends DefaultDataMarshaller {
                     AuthnStatementType authnStatement = (AuthnStatementType) obj;
                     SAMLAssertionWriter samlWriter = new SAMLAssertionWriter(StaxUtil.getXMLStreamWriter(bos));
                     samlWriter.write(authnStatement, true);
-                } else if (obj instanceof ArtifactResponseType) {
-                    ArtifactResponseType artifactResponseType = (ArtifactResponseType) obj;
-                    SAMLResponseWriter samlWriter = new SAMLResponseWriter(StaxUtil.getXMLStreamWriter(bos));
-                    samlWriter.write(artifactResponseType);
                 } else {
                     throw new IllegalArgumentException("Don't know how to serialize object of type " + obj.getClass().getName());
                 }
@@ -82,7 +77,7 @@ public class SAMLDataMarshaller extends DefaultDataMarshaller {
             String xmlString = serialized;
 
             try {
-                if (clazz.equals(ResponseType.class) || clazz.equals(AssertionType.class) || clazz.equals(AuthnStatementType.class) || clazz.equals(ArtifactResponseType.class)) {
+                if (clazz.equals(ResponseType.class) || clazz.equals(AssertionType.class) || clazz.equals(AuthnStatementType.class)) {
                     byte[] bytes = xmlString.getBytes(GeneralConstants.SAML_CHARSET);
                     InputStream is = new ByteArrayInputStream(bytes);
                     Object respType = SAMLParser.getInstance().parse(is);

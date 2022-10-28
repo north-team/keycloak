@@ -19,6 +19,9 @@ package org.keycloak.cluster.infinispan;
 
 import org.infinispan.Cache;
 import org.infinispan.client.hotrod.exceptions.HotRodClientException;
+import org.infinispan.commons.marshall.Externalizer;
+import org.infinispan.commons.marshall.MarshallUtil;
+import org.infinispan.commons.marshall.SerializeWith;
 import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.notifications.Listener;
 import org.infinispan.notifications.cachemanagerlistener.annotation.ViewChanged;
@@ -30,25 +33,32 @@ import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.cluster.ClusterProvider;
 import org.keycloak.cluster.ClusterProviderFactory;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.Retry;
 import org.keycloak.common.util.Time;
-import org.keycloak.connections.infinispan.DefaultInfinispanConnectionProviderFactory;
 import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
 import org.keycloak.connections.infinispan.TopologyInfo;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.connections.infinispan.InfinispanUtil;
-import org.keycloak.provider.EnvironmentDependentProviderFactory;
+import org.keycloak.models.sessions.infinispan.stream.RootAuthenticationSessionPredicate;
+import org.keycloak.models.sessions.infinispan.util.InfinispanUtil;
+import org.keycloak.models.sessions.infinispan.util.KeycloakMarshallUtil;
 
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -56,7 +66,7 @@ import java.util.stream.Collectors;
  *
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
-public class InfinispanClusterProviderFactory implements ClusterProviderFactory, EnvironmentDependentProviderFactory {
+public class InfinispanClusterProviderFactory implements ClusterProviderFactory {
 
     public static final String PROVIDER_ID = "infinispan";
 
@@ -73,13 +83,7 @@ public class InfinispanClusterProviderFactory implements ClusterProviderFactory,
     // Just to extract notifications related stuff to separate class
     private InfinispanNotificationsManager notificationsManager;
 
-    private ExecutorService localExecutor = Executors.newCachedThreadPool(r -> {
-        Thread thread = Executors.defaultThreadFactory().newThread(r);
-        thread.setName(this.getClass().getName() + "-" + thread.getName());
-        return thread;
-    });
-
-    private ViewChangeListener workCacheListener;
+    private ExecutorService localExecutor = Executors.newCachedThreadPool();
 
     @Override
     public ClusterProvider create(KeycloakSession session) {
@@ -95,8 +99,7 @@ public class InfinispanClusterProviderFactory implements ClusterProviderFactory,
                     InfinispanConnectionProvider ispnConnections = session.getProvider(InfinispanConnectionProvider.class);
                     workCache = ispnConnections.getCache(InfinispanConnectionProvider.WORK_CACHE_NAME);
 
-                    workCacheListener = new ViewChangeListener();
-                    workCache.getCacheManager().addListener(workCacheListener);
+                    workCache.getCacheManager().addListener(new ViewChangeListener());
 
                     // See if we have RemoteStore (external JDG) configured for cross-Data-Center scenario
                     Set<RemoteStore> remoteStores = InfinispanUtil.getRemoteStores(workCache);
@@ -146,8 +149,7 @@ public class InfinispanClusterProviderFactory implements ClusterProviderFactory,
             try {
                 V result;
                 if (taskTimeoutInSeconds > 0) {
-                    long lifespanMs = InfinispanUtil.toHotrodTimeMs(crossDCAwareCacheFactory.getCache(), Time.toMillis(taskTimeoutInSeconds));
-                    result = (V) crossDCAwareCacheFactory.getCache().putIfAbsent(key, value, lifespanMs, TimeUnit.MILLISECONDS);
+                    result = (V) crossDCAwareCacheFactory.getCache().putIfAbsent(key, value, taskTimeoutInSeconds, TimeUnit.SECONDS);
                 } else {
                     result = (V) crossDCAwareCacheFactory.getCache().putIfAbsent(key, value);
                 }
@@ -178,13 +180,7 @@ public class InfinispanClusterProviderFactory implements ClusterProviderFactory,
 
     @Override
     public void close() {
-        synchronized (this) {
-            if (workCache != null && workCacheListener != null) {
-                workCache.removeListener(workCacheListener);
-                workCacheListener = null;
-                localExecutor.shutdown();
-            }
-        }
+
     }
 
     @Override
@@ -192,10 +188,6 @@ public class InfinispanClusterProviderFactory implements ClusterProviderFactory,
         return PROVIDER_ID;
     }
 
-    @Override
-    public boolean isSupported() {
-        return !Profile.isFeatureEnabled(Profile.Feature.MAP_STORAGE);
-    }
 
     @Listener
     public class ViewChangeListener {
@@ -207,34 +199,21 @@ public class InfinispanClusterProviderFactory implements ClusterProviderFactory,
 
             // Use separate thread to avoid potential deadlock
             localExecutor.execute(() -> {
-                try {
-                    EmbeddedCacheManager cacheManager = workCache.getCacheManager();
-                    Transport transport = cacheManager.getTransport();
+                EmbeddedCacheManager cacheManager = workCache.getCacheManager();
+                Transport transport = cacheManager.getTransport();
 
-                    // Coordinator makes sure that entries for outdated nodes are cleaned up
-                    if (transport != null && transport.isCoordinator()) {
+                // Coordinator makes sure that entries for outdated nodes are cleaned up
+                if (transport != null && transport.isCoordinator()) {
 
-                        removedNodesAddresses.removeAll(newAddresses);
+                    removedNodesAddresses.removeAll(newAddresses);
 
-                        if (removedNodesAddresses.isEmpty()) {
-                            return;
-                        }
-
-                        logger.debugf("Nodes %s removed from cluster. Removing tasks locked by this nodes", removedNodesAddresses.toString());
-                        /*
-                            workaround for Infinispan 12.1.7.Final to prevent a deadlock while
-                            DefaultInfinispanConnectionProviderFactory is shutting down PersistenceManagerImpl
-                            that acquires a writeLock and this removal that acquires a readLock.
-                            First seen with https://issues.redhat.com/browse/ISPN-13664 and still occurs probably due to
-                            https://issues.redhat.com/browse/ISPN-13666 in 13.0.10
-                            Tracked in https://github.com/keycloak/keycloak/issues/9871
-                        */
-                        synchronized (DefaultInfinispanConnectionProviderFactory.class) {
-                            workCache.entrySet().removeIf(new LockEntryPredicate(removedNodesAddresses));
-                        }
+                    if (removedNodesAddresses.isEmpty()) {
+                        return;
                     }
-                } catch (Throwable t) {
-                    logger.error("caught exception in ViewChangeListener", t);
+
+                    logger.debugf("Nodes %s removed from cluster. Removing tasks locked by this nodes", removedNodesAddresses.toString());
+
+                    workCache.entrySet().removeIf(new LockEntryPredicate(removedNodesAddresses));
                 }
             });
         }

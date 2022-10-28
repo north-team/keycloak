@@ -17,15 +17,14 @@
 
 package org.keycloak.testsuite.pages;
 
-import static org.keycloak.testsuite.util.UIUtils.clickLink;
-import static org.keycloak.testsuite.util.UIUtils.getTextFromElement;
-
 import org.jboss.arquillian.graphene.page.Page;
 import org.keycloak.testsuite.util.UIUtils;
-import org.openqa.selenium.By;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
+
+import static org.keycloak.testsuite.util.UIUtils.clickLink;
+import static org.keycloak.testsuite.util.UIUtils.getTextFromElement;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -43,9 +42,6 @@ public class LoginUpdateProfilePage extends AbstractPage {
 
     @FindBy(id = "email")
     private WebElement emailInput;
-    
-    @FindBy(id = "department")
-    private WebElement departmentInput;
 
     @FindBy(css = "input[type=\"submit\"]")
     private WebElement submitButton;
@@ -56,16 +52,21 @@ public class LoginUpdateProfilePage extends AbstractPage {
     @FindBy(className = "alert-error")
     private WebElement loginAlertErrorMessage;
 
-    public void update(String firstName, String lastName) {
-        prepareUpdate().firstName(firstName).lastName(lastName).submit();
-    }
-
     public void update(String firstName, String lastName, String email) {
-        prepareUpdate().firstName(firstName).lastName(lastName).email(email).submit();
-    }
+        if (firstName != null) {
+            firstNameInput.clear();
+            firstNameInput.sendKeys(firstName);
+        }
+        if (lastName != null) {
+            lastNameInput.clear();
+            lastNameInput.sendKeys(lastName);
+        }
+        if (email != null) {
+            emailInput.clear();
+            emailInput.sendKeys(email);
+        }
 
-    public Update prepareUpdate() {
-        return new Update(this);
+        clickLink(submitButton);
     }
 
     public void cancel() {
@@ -87,17 +88,9 @@ public class LoginUpdateProfilePage extends AbstractPage {
     public String getLastName() {
         return lastNameInput.getAttribute("value");
     }
-    
+
     public String getEmail() {
         return emailInput.getAttribute("value");
-    }
-
-    public String getDepartment() {
-        return departmentInput.getAttribute("value");
-    }
-
-    public boolean isDepartmentEnabled() {
-        return departmentInput.isEnabled();
     }
 
     public boolean isCurrent() {
@@ -106,19 +99,6 @@ public class LoginUpdateProfilePage extends AbstractPage {
 
     public UpdateProfileErrors getInputErrors() {
         return errorsPage;
-    }
-    
-    public String getLabelForField(String fieldId) {
-        return driver.findElement(By.cssSelector("label[for="+fieldId+"]")).getText();
-    }
-    
-    public boolean isDepartmentPresent() {
-        try {
-          isDepartmentEnabled();
-          return true;
-        } catch (NoSuchElementException e) {
-            return false;
-        }
     }
 
     @Override
@@ -134,75 +114,14 @@ public class LoginUpdateProfilePage extends AbstractPage {
         }
     }
 
-    public static class Update {
-        private final LoginUpdateProfilePage page;
-        private String firstName;
-        private String lastName;
-        private String department;
-        private String email;
-
-        protected Update(LoginUpdateProfilePage page) {
-            this.page = page;
-        }
-
-        public Update firstName(String firstName) {
-            this.firstName = firstName;
-            return this;
-        }
-
-        public Update lastName(String lastName) {
-            this.lastName = lastName;
-            return this;
-        }
-
-        public Update department(String department) {
-            this.department = department;
-            return this;
-        }
-
-        public Update email(String email) {
-            this.email = email;
-            return this;
-        }
-
-        public void submit() {
-            if (firstName != null) {
-                page.firstNameInput.clear();
-                page.firstNameInput.sendKeys(firstName);
-            }
-            if (lastName != null) {
-                page.lastNameInput.clear();
-                page.lastNameInput.sendKeys(lastName);
-            }
-
-            if(department != null) {
-                page.departmentInput.clear();
-                page.departmentInput.sendKeys(department);
-            }
-
-            if (email != null) {
-                page.emailInput.clear();
-                page.emailInput.sendKeys(email);
-            }
-
-            clickLink(page.submitButton);
-        }
-    }
-
     // For managing input errors
     public static class UpdateProfileErrors {
 
         @FindBy(id = "input-error-firstname")
         private WebElement inputErrorFirstName;
 
-        @FindBy(id = "input-error-firstName")
-        private WebElement inputErrorFirstNameDynamic;
-
         @FindBy(id = "input-error-lastname")
         private WebElement inputErrorLastName;
-        
-        @FindBy(id = "input-error-lastName")
-        private WebElement inputErrorLastNameDynamic;
 
         @FindBy(id = "input-error-email")
         private WebElement inputErrorEmail;
@@ -214,11 +133,7 @@ public class LoginUpdateProfilePage extends AbstractPage {
             try {
                 return getTextFromElement(inputErrorFirstName);
             } catch (NoSuchElementException e) {
-                try {
-                    return getTextFromElement(inputErrorFirstNameDynamic);
-                } catch (NoSuchElementException ex) {
-                    return null;
-                }
+                return null;
             }
         }
 
@@ -226,11 +141,7 @@ public class LoginUpdateProfilePage extends AbstractPage {
             try {
                 return getTextFromElement(inputErrorLastName);
             } catch (NoSuchElementException e) {
-                try {
-                    return getTextFromElement(inputErrorLastNameDynamic);
-                } catch (NoSuchElementException ex) {
-                    return null;
-                }
+                return null;
             }
         }
 

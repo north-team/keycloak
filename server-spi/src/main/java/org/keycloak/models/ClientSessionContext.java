@@ -17,8 +17,6 @@
 
 package org.keycloak.models;
 
-import org.keycloak.rar.AuthorizationRequestContext;
-
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,20 +33,42 @@ public interface ClientSessionContext {
     Set<String> getClientScopeIds();
 
     /**
+     * @deprecated Use {@link #getClientScopesStream() getClientScopesStream} instead.
+     * @return Set of protocol mappers
+     */
+    @Deprecated
+    default Set<ClientScopeModel> getClientScopes() {
+        return getClientScopesStream().collect(Collectors.toSet());
+    }
+
+    /**
      * Returns client scopes as a stream.
-     * @return Stream of client scopes. Never returns {@code null}.
+     * @return Stream of client scopes.
      */
     Stream<ClientScopeModel> getClientScopesStream();
 
     /**
-     * Returns all roles including composite ones as a stream.
-     * @return Stream of {@link RoleModel}. Never returns {@code null}.
+     * @return expanded roles (composite roles already applied)
      */
+    @Deprecated
+    default Set<RoleModel> getRoles() {
+        return getRolesStream().collect(Collectors.toSet());
+    }
+
     Stream<RoleModel> getRolesStream();
 
     /**
+     * @deprecated Use {@link #getProtocolMappersStream() getProtocolMappersStream} instead.
+     * @return Set of protocol mappers
+     */
+    @Deprecated
+    default Set<ProtocolMapperModel> getProtocolMappers() {
+        return getProtocolMappersStream().collect(Collectors.toSet());
+    }
+
+    /**
      * Returns protocol mappers as a stream.
-     * @return Stream of protocol mappers. Never returns {@code null}.
+     * @return Stream of protocol mappers.
      */
     Stream<ProtocolMapperModel> getProtocolMappersStream();
 
@@ -57,7 +77,5 @@ public interface ClientSessionContext {
     void setAttribute(String name, Object value);
 
     <T> T getAttribute(String attribute, Class<T> clazz);
-
-    AuthorizationRequestContext getAuthorizationRequestContext();
 
 }

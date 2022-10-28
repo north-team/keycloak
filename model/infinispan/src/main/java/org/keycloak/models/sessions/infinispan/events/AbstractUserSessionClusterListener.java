@@ -24,31 +24,30 @@ import org.keycloak.cluster.ClusterProvider;
 import org.keycloak.connections.infinispan.TopologyInfo;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.connections.infinispan.InfinispanUtil;
+import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProvider;
+import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProviderFactory;
+import org.keycloak.models.sessions.infinispan.util.InfinispanUtil;
 import org.keycloak.models.utils.KeycloakModelUtils;
-import org.keycloak.provider.Provider;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
-public abstract class AbstractUserSessionClusterListener<SE extends SessionClusterEvent, T extends Provider> implements ClusterListener {
+public abstract class AbstractUserSessionClusterListener<SE extends SessionClusterEvent> implements ClusterListener {
 
     private static final Logger log = Logger.getLogger(AbstractUserSessionClusterListener.class);
 
     private final KeycloakSessionFactory sessionFactory;
 
-    private final Class<T> providerClazz;
-
-    public AbstractUserSessionClusterListener(KeycloakSessionFactory sessionFactory, Class<T> providerClazz) {
+    public AbstractUserSessionClusterListener(KeycloakSessionFactory sessionFactory) {
         this.sessionFactory = sessionFactory;
-        this.providerClazz = providerClazz;
     }
 
 
     @Override
     public void eventReceived(ClusterEvent event) {
         KeycloakModelUtils.runJobInTransaction(sessionFactory, (KeycloakSession session) -> {
-            T provider = session.getProvider(providerClazz);
+            InfinispanUserSessionProvider provider = (InfinispanUserSessionProvider) session.getProvider(UserSessionProvider.class, InfinispanUserSessionProviderFactory.PROVIDER_ID);
             SE sessionEvent = (SE) event;
 
             boolean shouldResendEvent = shouldResendEvent(session, sessionEvent);
@@ -66,7 +65,7 @@ public abstract class AbstractUserSessionClusterListener<SE extends SessionClust
         });
     }
 
-    protected abstract void eventReceived(KeycloakSession session, T provider, SE sessionEvent);
+    protected abstract void eventReceived(KeycloakSession session, InfinispanUserSessionProvider provider, SE sessionEvent);
 
 
     private boolean shouldResendEvent(KeycloakSession session, SessionClusterEvent event) {

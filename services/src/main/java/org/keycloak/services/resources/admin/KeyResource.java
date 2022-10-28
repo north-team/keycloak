@@ -60,8 +60,8 @@ public class KeyResource {
         List<KeysMetadataRepresentation.KeyMetadataRepresentation> realmKeys = session.keys().getKeysStream(realm)
                 .map(key -> {
                     if (key.getStatus().isActive()) {
-                        if (!keys.getActive().containsKey(key.getAlgorithmOrDefault())) {
-                            keys.getActive().put(key.getAlgorithmOrDefault(), key.getKid());
+                        if (!keys.getActive().containsKey(key.getAlgorithm())) {
+                            keys.getActive().put(key.getAlgorithm(), key.getKid());
                         }
                     }
                     return toKeyMetadataRepresentation(key);
@@ -79,10 +79,9 @@ public class KeyResource {
         r.setKid(key.getKid());
         r.setStatus(key.getStatus() != null ? key.getStatus().name() : null);
         r.setType(key.getType());
-        r.setAlgorithm(key.getAlgorithmOrDefault());
+        r.setAlgorithm(key.getAlgorithm());
         r.setPublicKey(key.getPublicKey() != null ? PemUtils.encodeKey(key.getPublicKey()) : null);
         r.setCertificate(key.getCertificate() != null ? PemUtils.encodeCertificate(key.getCertificate()) : null);
-        r.setUse(key.getUse());
         return r;
     }
 }

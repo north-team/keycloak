@@ -22,7 +22,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-servers-app-server</artifactId>
-        <version>999-SNAPSHOT</version>
+        <version>12.0.4</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -38,16 +38,15 @@
         <saml-adapter.version>${project.version}</saml-adapter.version>
         <skip.elytron.adapter.installation>true</skip.elytron.adapter.installation>
         <skip.adapter.offline.installation>true</skip.adapter.offline.installation>
-        <!-- Workaround for WFCORE-5335 issue -->
-        <cli.executable>bash</cli.executable>
-        <cli.jboss-cli.arg>jboss-cli.${script.suffix}</cli.jboss-cli.arg>
+
+        <cli.executable>./jboss-cli.${script.suffix}</cli.executable>
         <cli.working.dir>${app.server.jboss.home}/bin</cli.working.dir>
         <cli.win.working.dir/>
     </properties>
 
     <profiles>
 
-        <profile>
+    	<profile>
             <id>windows-properties-cli</id>
             <activation>
                 <os>
@@ -56,8 +55,6 @@
             </activation>
             <properties>
                 <cli.executable>run-jboss-cli.bat</cli.executable>
-                <!-- Workaround for WFCORE-5335 - Intentionally kept empty for Windows (no special care needed there) -->
-                <cli.jboss-cli.arg/>
                 <cli.working.dir>${common.resources}/win</cli.working.dir>
                 <cli.win.working.dir>${app.server.jboss.home}/bin</cli.win.working.dir>
             </properties>
@@ -274,7 +271,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${common.resources}/cli/add-adapter-log-level.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -299,7 +295,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${common.resources}/cli/add-adapter-log-level.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -327,7 +322,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-elytron-install-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -353,7 +347,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-elytron-install-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -380,7 +373,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-elytron-install-saml-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -406,7 +398,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-elytron-install-saml-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -434,7 +425,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-install-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -460,7 +450,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-install-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -487,7 +476,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-install-saml-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -513,7 +501,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${app.server.jboss.home}/bin/adapter-install-saml-offline.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -539,7 +526,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${common.resources}/cli/add-secured-deployments.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -565,7 +551,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${common.resources}/cli/configure-cluster-config.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -591,7 +576,6 @@
                                         <JAVA_HOME>${app.server.java.home}</JAVA_HOME>
                                     </environmentVariables>
                                     <arguments>
-                                        <argument>${cli.jboss-cli.arg}</argument>
                                         <argument>--file=${common.resources}/cli/configure-crossdc-config.cli</argument>
                                         <!--
                                             following attribute is required just for windows
@@ -748,6 +732,18 @@
             </modules>
         </profile>
         <profile>
+            <id>app-server-eap6</id>
+            <activation>
+                <property>
+                    <name>app.server</name>
+                    <value>eap6</value>
+                </property>
+            </activation>
+            <modules>
+                <module>eap6</module>
+            </modules>
+        </profile>
+        <profile>
             <id>app-server-wildfly</id>
             <activation>
                 <property>
@@ -757,6 +753,30 @@
             </activation>
             <modules>
                 <module>wildfly</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>app-server-wildfly-deprecated</id>
+            <activation>
+                <property>
+                    <name>app.server</name>
+                    <value>wildfly-deprecated</value>
+                </property>
+            </activation>
+            <modules>
+                <module>wildfly-deprecated</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>app-server-relative</id>
+            <activation>
+                <property>
+                    <name>app.server</name>
+                    <value>relative</value>
+                </property>
+            </activation>
+            <modules>
+                <module>relative</module>
             </modules>
         </profile>
     </profiles>

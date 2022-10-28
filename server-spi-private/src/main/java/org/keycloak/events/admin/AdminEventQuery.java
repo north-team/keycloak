@@ -38,7 +38,7 @@ public interface AdminEventQuery {
     /**
      * Search by authentication realm
      *
-     * @param realmId realm id
+     * @param realmId realm name
      * @return Associated <code>AdminEventQuery</code> for method chaining
      */
     AdminEventQuery authRealm(String realmId);
@@ -128,22 +128,17 @@ public interface AdminEventQuery {
     AdminEventQuery maxResults(int max);
 
     /**
-     * Order the result by descending time
-     *
-     * @return <code>this</code> for method chaining
+     * Executes the query and returns the results
+     * @deprecated Use {@link #getResultStream() getResultStream} instead.
      */
-    AdminEventQuery orderByDescTime();
-
-    /**
-     * Order the result by ascending time
-     *
-     * @return <code>this</code> for method chaining
-     */
-    AdminEventQuery orderByAscTime();
+    @Deprecated
+    default List<AdminEvent> getResultList() {
+        return getResultStream().collect(Collectors.toList());
+    }
 
     /**
      * Executes the query and returns the results as a stream.
-     * @return Stream of admin events. Never returns {@code null}.
+     * @return Stream of admin events
      */
     Stream<AdminEvent> getResultStream();
 }

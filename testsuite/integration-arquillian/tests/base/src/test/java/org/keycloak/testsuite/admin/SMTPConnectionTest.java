@@ -36,6 +36,9 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.keycloak.representations.idm.ComponentRepresentation.SECRET_VALUE;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
+import static org.keycloak.util.JsonSerialization.writeValueAsPrettyString;
 
 /**
  * @author <a href="mailto:bruno@abstractj.org">Bruno Oliveira</a>
@@ -93,6 +96,7 @@ public class SMTPConnectionTest extends AbstractKeycloakTest {
     }
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void testWithProperSettings() throws Exception {
         Response response = realm.testSMTPConnection(settings("127.0.0.1", "3025", "auto@keycloak.org", null, null, null,
                 null, null));
@@ -108,6 +112,7 @@ public class SMTPConnectionTest extends AbstractKeycloakTest {
     }
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void testWithAuthEnabledValidCredentials() throws Exception {
         greenMailRule.credentials("admin@localhost", "admin");
         Response response = realm.testSMTPConnection(settings("127.0.0.1", "3025", "auto@keycloak.org", "true", null, null,
@@ -116,6 +121,7 @@ public class SMTPConnectionTest extends AbstractKeycloakTest {
     }
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void testAuthEnabledAndSavedCredentials() throws Exception {
         RealmRepresentation realmRep = realm.toRepresentation();
         Map<String, String> oldSmtp = realmRep.getSmtpServer();

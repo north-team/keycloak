@@ -43,7 +43,7 @@ public abstract class TxAwareLDAPUserModelDelegate extends UserModelDelegate {
         LDAPTransaction transaction = provider.getUserManager().getTransaction(getId());
         if (transaction.getState() == LDAPTransaction.TransactionState.NOT_STARTED) {
             if (logger.isTraceEnabled()) {
-                logger.trace("Starting and enlisting transaction for object " + ldapUser.getDn());
+                logger.trace("Starting and enlisting transaction for object " + ldapUser.getDn().toString());
             }
 
             this.provider.getSession().getTransactionManager().enlistAfterCompletion(transaction);

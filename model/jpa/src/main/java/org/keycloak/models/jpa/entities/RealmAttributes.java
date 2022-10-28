@@ -34,7 +34,6 @@ public interface RealmAttributes {
     String OFFLINE_SESSION_MAX_LIFESPAN_ENABLED = "offlineSessionMaxLifespanEnabled";
 
     String OFFLINE_SESSION_MAX_LIFESPAN = "offlineSessionMaxLifespan";
-
     String CLIENT_SESSION_IDLE_TIMEOUT = "clientSessionIdleTimeout";
     String CLIENT_SESSION_MAX_LIFESPAN = "clientSessionMaxLifespan";
     String CLIENT_OFFLINE_SESSION_IDLE_TIMEOUT = "clientOfflineSessionIdleTimeout";
@@ -50,7 +49,5 @@ public interface RealmAttributes {
     String WEBAUTHN_POLICY_CREATE_TIMEOUT = "webAuthnPolicyCreateTimeout";
     String WEBAUTHN_POLICY_AVOID_SAME_AUTHENTICATOR_REGISTER = "webAuthnPolicyAvoidSameAuthenticatorRegister";
     String WEBAUTHN_POLICY_ACCEPTABLE_AAGUIDS = "webAuthnPolicyAcceptableAaguids";
-
-    String ADMIN_EVENTS_EXPIRATION = "adminEventsExpiration";
 
 }

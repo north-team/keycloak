@@ -28,10 +28,7 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.provider.ConfigurationValidationHelper;
 import org.keycloak.provider.ProviderConfigProperty;
 
-import java.security.KeyFactory;
 import java.security.KeyPair;
-import java.security.interfaces.ECPublicKey;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.List;
 
 public class GeneratedEcdsaKeyProviderFactory extends AbstractEcdsaKeyProviderFactory {
@@ -106,7 +103,7 @@ public class GeneratedEcdsaKeyProviderFactory extends AbstractEcdsaKeyProviderFa
             generateKeys(model, ecInNistRep);
             logger.debugv("Generated keys for {0}", realm.getName());
         } else {
-            String currentEc = getCurveFromPublicKey(model.getConfig().getFirst(GeneratedEcdsaKeyProviderFactory.ECDSA_PUBLIC_KEY_KEY));
+            String currentEc = model.get(ECDSA_ELLIPTIC_CURVE_KEY);
             if (!ecInNistRep.equals(currentEc)) {
                 generateKeys(model, ecInNistRep);
                 logger.debugv("Elliptic Curve changed, generating new keys for {0}", realm.getName());
@@ -126,14 +123,4 @@ public class GeneratedEcdsaKeyProviderFactory extends AbstractEcdsaKeyProviderFa
         }
     }
 
-    private String getCurveFromPublicKey(String publicEcdsaKeyBase64Encoded) {
-        try {
-            KeyFactory kf = KeyFactory.getInstance("EC");
-            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(Base64.decode(publicEcdsaKeyBase64Encoded));
-            ECPublicKey ecKey = (ECPublicKey) kf.generatePublic(publicKeySpec);
-            return "P-" + ecKey.getParams().getCurve().getField().getFieldSize();
-        } catch (Throwable t) {
-            throw new ComponentValidationException("Failed to get EC from its public key", t);
-        }
-    }
 }

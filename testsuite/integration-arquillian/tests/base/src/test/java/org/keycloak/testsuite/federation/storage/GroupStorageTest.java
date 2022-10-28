@@ -17,7 +17,6 @@
 
 package org.keycloak.testsuite.federation.storage;
 
-import org.keycloak.common.Profile.Feature;
 import org.junit.Before;
 import org.junit.Test;
 import org.keycloak.common.util.MultivaluedHashMap;
@@ -29,8 +28,9 @@ import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.storage.StorageId;
 import org.keycloak.storage.group.GroupStorageProvider;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
-import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.auth.page.AuthRealm;
 import org.keycloak.testsuite.federation.HardcodedGroupStorageProviderFactory;
 
@@ -39,13 +39,13 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.stream.Collectors;
 
-import org.junit.BeforeClass;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class GroupStorageTest extends AbstractTestRealmKeycloakTest {
 
     private String providerId;
@@ -60,11 +60,6 @@ public class GroupStorageTest extends AbstractTestRealmKeycloakTest {
             getCleanup().addComponentId(id);
             return id;
         }
-    }
-
-    @BeforeClass
-    public static void checkNotMapStorage() {
-        ProfileAssume.assumeFeatureDisabled(Feature.MAP_STORAGE);
     }
 
     @Before
@@ -91,42 +86,41 @@ public class GroupStorageTest extends AbstractTestRealmKeycloakTest {
         });
     }
 
-    @Test
-    public void testSearchTimeout() throws Exception{
-        runTestWithTimeout(4000, () -> {
-            String hardcodedGroup = HardcodedGroupStorageProviderFactory.PROVIDER_ID;
-            String delayedSearch = HardcodedGroupStorageProviderFactory.DELAYED_SEARCH;
-            String providerId = this.providerId;
-            testingClient.server().run(session -> {
-                RealmModel realm = session.realms().getRealmByName(AuthRealm.TEST);
+    @Test(timeout = 4000)
+    @AuthServerContainerExclude(AuthServer.REMOTE) // testingClient doesn't work with remote
+    public void testSearchTimeout() {
+        String hardcodedGroup = HardcodedGroupStorageProviderFactory.PROVIDER_ID;
+        String delayedSearch = HardcodedGroupStorageProviderFactory.DELAYED_SEARCH;
+        String providerId = this.providerId;
+        testingClient.server().run(session -> {
+            RealmModel realm = session.realms().getRealmByName(AuthRealm.TEST);
 
-                assertThat(session.groups()
-                            .searchForGroupByNameStream(realm, "group", false, null, null)
-                            .map(GroupModel::getName)
-                            .collect(Collectors.toList()),
-                        allOf(
-                            hasItem(hardcodedGroup),
-                            hasItem("sample-realm-group"))
-                        );
+            assertThat(session.groupStorageManager()
+                        .searchForGroupByName(realm, "group", null, null).stream()
+                        .map(GroupModel::getName)
+                        .collect(Collectors.toList()), 
+                    allOf(
+                        hasItem(hardcodedGroup),
+                        hasItem("sample-realm-group"))
+                    );
 
-                //update the provider to simulate delay during the search
-                ComponentModel memoryProvider = realm.getComponent(providerId);
-                memoryProvider.getConfig().putSingle(delayedSearch, Boolean.toString(true));
-                realm.updateComponent(memoryProvider);
-            });
+            //update the provider to simulate delay during the search
+            ComponentModel memoryProvider = realm.getComponent(providerId);
+            memoryProvider.getConfig().putSingle(delayedSearch, Boolean.toString(true));
+            realm.updateComponent(memoryProvider);
+        });
 
-            testingClient.server().run(session -> {
-                RealmModel realm = session.realms().getRealmByName(AuthRealm.TEST);
-                // search for groups and check hardcoded-group is not present
-                assertThat(session.groups()
-                            .searchForGroupByNameStream(realm, "group", false, null, null)
-                            .map(GroupModel::getName)
-                            .collect(Collectors.toList()),
-                        allOf(
-                            not(hasItem(hardcodedGroup)),
-                            hasItem("sample-realm-group")
-                        ));
-            });
+        testingClient.server().run(session -> {
+            RealmModel realm = session.realms().getRealmByName(AuthRealm.TEST);
+            // search for groups and check hardcoded-group is not present
+            assertThat(session.groupStorageManager()
+                        .searchForGroupByName(realm, "group", null, null).stream()
+                        .map(GroupModel::getName)
+                        .collect(Collectors.toList()),
+                    allOf(
+                        not(hasItem(hardcodedGroup)),
+                        hasItem("sample-realm-group")
+                    ));
         });
     }
 

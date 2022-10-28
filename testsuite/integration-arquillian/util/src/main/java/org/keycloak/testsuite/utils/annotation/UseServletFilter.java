@@ -23,5 +23,4 @@ public @interface UseServletFilter {
     String filterPattern() default "/*";
     String dispatcherType() default "";
     String skipPattern() default "";
-    String idMapper() default "";
 }

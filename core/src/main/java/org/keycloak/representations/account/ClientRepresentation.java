@@ -14,10 +14,6 @@ public class ClientRepresentation {
     private String baseUrl;
     private String effectiveUrl;
     private ConsentRepresentation consent;
-    private String logoUri;
-    private String policyUri;
-    private String tosUri;
-
 
     public String getClientId() {
         return clientId;
@@ -97,29 +93,5 @@ public class ClientRepresentation {
 
     public void setConsent(ConsentRepresentation consent) {
         this.consent = consent;
-    }
-
-    public String getLogoUri() {
-        return logoUri;
-    }
-
-    public void setLogoUri(String logoUri) {
-        this.logoUri = logoUri;
-    }
-
-    public String getPolicyUri() {
-        return policyUri;
-    }
-
-    public void setPolicyUri(String policyUri) {
-        this.policyUri = policyUri;
-    }
-
-    public String getTosUri() {
-        return tosUri;
-    }
-
-    public void setTosUri(String tosUri) {
-        this.tosUri = tosUri;
     }
 }

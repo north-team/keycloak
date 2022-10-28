@@ -30,6 +30,7 @@ import java.util.Properties;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -57,12 +58,13 @@ public class DefaultHttpClientFactoryTest {
 		factory.init(scope(values));
 		KeycloakSession session = new DefaultKeycloakSession(new DefaultKeycloakSessionFactory());
 		HttpClientProvider provider = factory.create(session);
-        Optional<String> testURL = getTestURL();
-        Assume.assumeTrue( "Could not get test url for domain", testURL.isPresent() );
-		try (CloseableHttpClient httpClient = (CloseableHttpClient) provider.getHttpClient();
-          CloseableHttpResponse response = httpClient.execute(new HttpGet(testURL.get()))) {
-    		assertEquals(HttpStatus.SC_NOT_FOUND,response.getStatusLine().getStatusCode());
+		CloseableHttpResponse response;
+		try(CloseableHttpClient httpClient = (CloseableHttpClient) provider.getHttpClient()){
+			Optional<String> testURL = getTestURL();
+			Assume.assumeTrue( "Could not get test url for domain", testURL.isPresent() );
+			response = httpClient.execute(new HttpGet(testURL.get()));
 		}
+		assertEquals(HttpStatus.SC_NOT_FOUND,response.getStatusLine().getStatusCode());
 	}
 
 	@Test(expected = SSLPeerUnverifiedException.class)
@@ -94,7 +96,7 @@ public class DefaultHttpClientFactoryTest {
 
 		StringBuilder sb = new StringBuilder();
 		sb.append("{");
-		sb.append(String.join(",", params));
+		sb.append(StringUtils.join(params, ','));
 		sb.append("}");
 		
 		return sb.toString();

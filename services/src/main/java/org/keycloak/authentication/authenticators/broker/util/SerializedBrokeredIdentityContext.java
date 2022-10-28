@@ -32,7 +32,6 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.services.resources.IdentityBrokerService;
 import org.keycloak.sessions.AuthenticationSessionModel;
-import org.keycloak.userprofile.UserProfileContext;
 import org.keycloak.util.JsonSerialization;
 
 import java.io.IOException;
@@ -67,12 +66,6 @@ public class SerializedBrokeredIdentityContext implements UpdateProfileContext {
         return !emailAsUsername;
     }
 
-    @JsonIgnore
-    @Override
-    public UserProfileContext getUserProfileContext() {
-        return UserProfileContext.IDP_REVIEW;
-    }
-    
     public String getId() {
         return id;
     }
@@ -90,12 +83,6 @@ public class SerializedBrokeredIdentityContext implements UpdateProfileContext {
     @Override
     public void setUsername(String username) {
         setSingleAttribute(UserModel.USERNAME, username);
-    }
-
-    @JsonIgnore
-    @Override
-    public boolean isEditEmailAllowed() {
-        return true;
     }
 
     public String getModelUsername() {

@@ -30,6 +30,7 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.ModelTest;
 
 import java.util.Arrays;
@@ -38,12 +39,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import org.keycloak.models.Constants;
-import org.keycloak.models.RoleModel;
+
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class ConcurrentTransactionsTest extends AbstractTestRealmKeycloakTest {
 
     private static final int LATCH_TIMEOUT_MS = 30000;
@@ -61,13 +63,11 @@ public class ConcurrentTransactionsTest extends AbstractTestRealmKeycloakTest {
         try {
             KeycloakModelUtils.runJobInTransaction(session.getKeycloakSessionFactory(), (KeycloakSession sessionSetup) -> {
 
-                RealmModel realm = sessionSetup.realms().getRealmByName("test");
+                RealmModel realm = sessionSetup.realms().getRealm("test");
                 sessionSetup.users().addUser(realm, "user1").setEmail("user1@localhost");
                 sessionSetup.users().addUser(realm, "user2").setEmail("user2@localhost");
 
                 realm = sessionSetup.realms().createRealm("original");
-                RoleModel defaultRole = sessionSetup.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName());
-                realm.setDefaultRole(defaultRole);
 
                 client[0] = sessionSetup.clients().addClient(realm, "client");
                 client[0].setSecret("old");
@@ -105,14 +105,10 @@ public class ConcurrentTransactionsTest extends AbstractTestRealmKeycloakTest {
                                 throw new IllegalStateException("Timeout when waiting for updateLatch");
                             }
 
-                            // the behavior upon reading client information would depend on the store:
-                            // * it might return the new values if this really touches the store and it using read committed and not repeatable read
-                            // * it might return the old values if the information is cached within the current session (either explicitly, or implicitly using the JPA persistence context), or using repeatable read
-                            // * it might throw an exception if a concurrent modification exception occurred when reading additional data from the store and read committed is used
+                            logger.info("transaction1: Going to read client again");
 
-                            // logger.info("transaction1: Going to read client again");
-                            // client1 = currentSession.clients().getClientByClientId(realm1, "client");
-                            // logger.info("transaction1: secret: " + client1.getSecret());
+                            client1 = currentSession.clients().getClientByClientId(realm1, "client");
+                            logger.info("transaction1: secret: " + client1.getSecret());
 
                         } catch (Exception e) {
                             exceptionHolder.set(e);
@@ -185,22 +181,21 @@ public class ConcurrentTransactionsTest extends AbstractTestRealmKeycloakTest {
 
             });
         } finally {
-            KeycloakModelUtils.runJobInTransaction(session.getKeycloakSessionFactory(), kcSession -> tearDownRealm(kcSession, "user1", "user2"));
+            tearDownRealm(session, "user1", "user2");
         }
     }
 
 
     // KEYCLOAK-3296 , KEYCLOAK-3494
     @Test
-    @ModelTest(skipForMapStorage = true) // skipped for map storage - to be revisited (GHI #12910)
+    @ModelTest
     public void removeUserAttribute(KeycloakSession session) throws Exception {
 
         try {
             KeycloakModelUtils.runJobInTransaction(session.getKeycloakSessionFactory(), (KeycloakSession sessionSet) -> {
 
                 RealmModel realm = sessionSet.realms().createRealm("original");
-                realm.setDefaultRole(sessionSet.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
-            
+
                 UserModel john = sessionSet.users().addUser(realm, "john");
                 john.setSingleAttribute("foo", "val1");
 
@@ -222,10 +217,10 @@ public class ConcurrentTransactionsTest extends AbstractTestRealmKeycloakTest {
                             try {
                                 // Read user attribute
                                 RealmModel realm = session1.realms().getRealmByName("original");
-                                UserModel john = session1.users().getUserByUsername(realm, "john");
+                                UserModel john = session1.users().getUserByUsername("john", realm);
                                 String attrVal = john.getFirstAttribute("foo");
 
-                                UserModel john2 = session1.users().getUserByUsername(realm, "john2");
+                                UserModel john2 = session1.users().getUserByUsername("john2", realm);
                                 String attrVal2 = john2.getFirstAttribute("foo");
 
                                 // Wait until it's read in both threads
@@ -277,8 +272,8 @@ public class ConcurrentTransactionsTest extends AbstractTestRealmKeycloakTest {
 
         RealmModel realm = currentSession.realms().getRealmByName("original");
 
-        UserModel realmUser1 = currentSession.users().getUserByUsername(realm, user1);
-        UserModel realmUser2 = currentSession.users().getUserByUsername(realm, user2);
+        UserModel realmUser1 = currentSession.users().getUserByUsername(user1, realm);
+        UserModel realmUser2 = currentSession.users().getUserByUsername(user2, realm);
 
         UserManager um = new UserManager(currentSession);
         if (realmUser1 != null) {

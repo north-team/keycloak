@@ -34,7 +34,6 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 
 /**
  * Provides a Keycloak {@link AuthenticationEntryPoint authentication entry point}. Uses a
@@ -106,13 +105,7 @@ public class KeycloakAuthenticationEntryPoint implements AuthenticationEntryPoin
             // stored in a session. We'll store it in a cookie instead.
             response.addCookie(KeycloakCookieBasedRedirect.createCookieFromRedirectUrl(request.getRequestURI()));
         }
-
-        String queryParameters = "";
-        if (!StringUtils.isEmpty(request.getQueryString())) {
-            queryParameters = "?" + request.getQueryString();
-        }
-
-        String contextAwareLoginUri = request.getContextPath() + loginUri + queryParameters;
+        String contextAwareLoginUri = request.getContextPath() + loginUri;
         log.debug("Redirecting to login URI {}", contextAwareLoginUri);
         response.sendRedirect(contextAwareLoginUri);
     }

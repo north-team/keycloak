@@ -30,8 +30,6 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
-import org.keycloak.common.crypto.CryptoIntegration;
-
 /**
  * Extract PrivateKey, PublicKey, and X509Certificate from a DER encoded byte array or file.  Usually
  * generated from openssl
@@ -40,6 +38,9 @@ import org.keycloak.common.crypto.CryptoIntegration;
  * @version $Revision: 1 $
  */
 public final class DerUtils {
+    static {
+        BouncyIntegration.init();
+    }
 
     private DerUtils() {
     }
@@ -54,23 +55,19 @@ public final class DerUtils {
 
         PKCS8EncodedKeySpec spec =
                 new PKCS8EncodedKeySpec(keyBytes);
-        KeyFactory kf =CryptoIntegration.getProvider().getKeyFactory("RSA");
+        KeyFactory kf = KeyFactory.getInstance("RSA", "BC");
         return kf.generatePrivate(spec);
     }
 
     public static PublicKey decodePublicKey(byte[] der) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
-        return decodePublicKey(der, "RSA");
-    }
-
-    public static PublicKey decodePublicKey(byte[] der, String type) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
         X509EncodedKeySpec spec =
                 new X509EncodedKeySpec(der);
-        KeyFactory kf = CryptoIntegration.getProvider().getKeyFactory(type);
+        KeyFactory kf = KeyFactory.getInstance("RSA", "BC");
         return kf.generatePublic(spec);
     }
 
     public static X509Certificate decodeCertificate(InputStream is) throws Exception {
-        CertificateFactory cf = CryptoIntegration.getProvider().getX509CertFactory();
+        CertificateFactory cf = CertificateFactory.getInstance("X.509", "BC");
         X509Certificate cert = (X509Certificate) cf.generateCertificate(is);
         is.close();
         return cert;
@@ -79,7 +76,7 @@ public final class DerUtils {
     public static PrivateKey decodePrivateKey(byte[] der) throws NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
         PKCS8EncodedKeySpec spec =
                 new PKCS8EncodedKeySpec(der);
-        KeyFactory kf = CryptoIntegration.getProvider().getKeyFactory("RSA");
+        KeyFactory kf = KeyFactory.getInstance("RSA", "BC");
         return kf.generatePrivate(spec);
     }
 }

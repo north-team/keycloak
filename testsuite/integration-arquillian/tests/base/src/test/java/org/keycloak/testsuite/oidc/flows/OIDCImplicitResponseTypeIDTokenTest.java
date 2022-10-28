@@ -61,12 +61,6 @@ public class OIDCImplicitResponseTypeIDTokenTest extends AbstractOIDCResponseTyp
         Assert.assertNull(idToken.getAccessTokenHash());
         Assert.assertNull(idToken.getCodeHash());
 
-        // Validate if token_type is null
-        Assert.assertNull(authzResponse.getTokenType());
-
-        // Validate if expires_in is null
-        Assert.assertNull(authzResponse.getExpiresIn());
-
         return Collections.singletonList(idToken);
     }
 

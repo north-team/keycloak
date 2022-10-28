@@ -19,11 +19,8 @@ package org.keycloak.models.cache.infinispan;
 
 import org.jboss.logging.Logger;
 import org.keycloak.cluster.ClusterProvider;
-import org.keycloak.credential.CredentialInput;
 import org.keycloak.models.ClientScopeModel;
-import org.keycloak.models.CredentialValidationOutput;
 import org.keycloak.models.IdentityProviderModel;
-import org.keycloak.models.LegacySessionSupportProvider;
 import org.keycloak.models.cache.infinispan.events.InvalidationEvent;
 import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.component.ComponentModel;
@@ -56,10 +53,6 @@ import org.keycloak.models.cache.infinispan.stream.InIdentityProviderPredicate;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.ReadOnlyUserModelDelegate;
 import org.keycloak.storage.CacheableStorageProviderModel;
-import org.keycloak.storage.DatastoreProvider;
-import org.keycloak.storage.LegacyStoreManagers;
-import org.keycloak.storage.OnCreateComponent;
-import org.keycloak.storage.OnUpdateComponent;
 import org.keycloak.storage.StorageId;
 import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.UserStorageProviderModel;
@@ -78,7 +71,7 @@ import java.util.stream.Stream;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateComponent {
+public class UserCacheSession implements UserCache.Streams {
     protected static final Logger logger = Logger.getLogger(UserCacheSession.class);
     protected UserCacheManager cache;
     protected KeycloakSession session;
@@ -92,13 +85,11 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     protected Set<String> realmInvalidations = new HashSet<>();
     protected Set<InvalidationEvent> invalidationEvents = new HashSet<>(); // Events to be sent across cluster
     protected Map<String, UserModel> managedUsers = new HashMap<>();
-    private LegacyStoreManagers datastoreProvider;
 
     public UserCacheSession(UserCacheManager cache, KeycloakSession session) {
         this.cache = cache;
         this.session = session;
         this.startupRevision = cache.getCurrentCounter();
-        this.datastoreProvider = (LegacyStoreManagers) session.getProvider(DatastoreProvider.class);
         session.getTransactionManager().enlistAfterCompletion(getTransaction());
     }
 
@@ -112,7 +103,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     public UserProvider getDelegate() {
         if (!transactionActive) throw new IllegalStateException("Cannot access delegate without a transaction");
         if (delegate != null) return delegate;
-        delegate = this.datastoreProvider.userStorageManager();
+        delegate = session.userStorageManager();
 
         return delegate;
     }
@@ -192,11 +183,11 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     }
 
     @Override
-    public UserModel getUserById(RealmModel realm, String id) {
+    public UserModel getUserById(String id, RealmModel realm) {
         logger.tracev("getuserById {0}", id);
         if (isRegisteredForInvalidation(realm, id)) {
             logger.trace("registered for invalidation return delegate");
-            return getDelegate().getUserById(realm, id);
+            return getDelegate().getUserById(id, realm);
         }
         if (managedUsers.containsKey(id)) {
             logger.trace("return managedusers");
@@ -213,7 +204,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
         if (cached == null) {
             logger.trace("not cached");
             Long loaded = cache.getCurrentRevision(id);
-            UserModel delegate = getDelegate().getUserById(realm, id);
+            UserModel delegate = getDelegate().getUserById(id, realm);
             if (delegate == null) {
                 logger.trace("delegate returning null");
                 return null;
@@ -247,17 +238,17 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     }
 
     @Override
-    public UserModel getUserByUsername(RealmModel realm, String username) {
+    public UserModel getUserByUsername(String username, RealmModel realm) {
         logger.tracev("getUserByUsername: {0}", username);
         username = username.toLowerCase();
         if (realmInvalidations.contains(realm.getId())) {
             logger.tracev("realmInvalidations");
-            return getDelegate().getUserByUsername(realm, username);
+            return getDelegate().getUserByUsername(username, realm);
         }
         String cacheKey = getUserByUsernameCacheKey(realm.getId(), username);
         if (invalidations.contains(cacheKey)) {
             logger.tracev("invalidations");
-            return getDelegate().getUserByUsername(realm, username);
+            return getDelegate().getUserByUsername(username, realm);
         }
         UserListQuery query = cache.get(cacheKey, UserListQuery.class);
 
@@ -265,7 +256,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
         if (query == null) {
             logger.tracev("query null");
             Long loaded = cache.getCurrentRevision(cacheKey);
-            UserModel model = getDelegate().getUserByUsername(realm, username);
+            UserModel model = getDelegate().getUserByUsername(username, realm);
             if (model == null) {
                 logger.tracev("model from delegate null");
                 return null;
@@ -288,11 +279,11 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
             userId = query.getUsers().iterator().next();
             if (invalidations.contains(userId)) {
                 logger.tracev("invalidated cache return delegate");
-                return getDelegate().getUserByUsername(realm, username);
+                return getDelegate().getUserByUsername(username, realm);
 
             }
             logger.trace("return getUserById");
-            return getUserById(realm, userId);
+            return getUserById(userId, realm);
         }
     }
 
@@ -321,7 +312,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
             // its also hard to test stuff
             if (model.shouldInvalidate(cached)) {
                 registerUserInvalidation(realm, cached);
-                return getDelegate().getUserById(realm, cached.getId());
+                return getDelegate().getUserById(cached.getId(), realm);
             }
         }
         return new UserAdapter(cached, this, session, realm);
@@ -373,26 +364,26 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
 
     private void onCache(RealmModel realm, UserAdapter adapter, UserModel delegate) {
         ((OnUserCache)getDelegate()).onCache(realm, adapter, delegate);
-        ((OnUserCache) session.getProvider(LegacySessionSupportProvider.class).userCredentialManager()).onCache(realm, adapter, delegate);
+        ((OnUserCache)session.userCredentialManager()).onCache(realm, adapter, delegate);
     }
 
     @Override
-    public UserModel getUserByEmail(RealmModel realm, String email) {
+    public UserModel getUserByEmail(String email, RealmModel realm) {
         if (email == null) return null;
         email = email.toLowerCase();
         if (realmInvalidations.contains(realm.getId())) {
-            return getDelegate().getUserByEmail(realm, email);
+            return getDelegate().getUserByEmail(email, realm);
         }
         String cacheKey = getUserByEmailCacheKey(realm.getId(), email);
         if (invalidations.contains(cacheKey)) {
-            return getDelegate().getUserByEmail(realm, email);
+            return getDelegate().getUserByEmail(email, realm);
         }
         UserListQuery query = cache.get(cacheKey, UserListQuery.class);
 
         String userId = null;
         if (query == null) {
             Long loaded = cache.getCurrentRevision(cacheKey);
-            UserModel model = getDelegate().getUserByEmail(realm, email);
+            UserModel model = getDelegate().getUserByEmail(email, realm);
             if (model == null) return null;
             userId = model.getId();
             if (invalidations.contains(userId)) return model;
@@ -408,10 +399,10 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
         } else {
             userId = query.getUsers().iterator().next();
             if (invalidations.contains(userId)) {
-                return getDelegate().getUserByEmail(realm, email);
+                return getDelegate().getUserByEmail(email, realm);
 
             }
-            return getUserById(realm, userId);
+            return getUserById(userId, realm);
         }
     }
 
@@ -421,23 +412,23 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     }
 
     @Override
-    public UserModel getUserByFederatedIdentity(RealmModel realm, FederatedIdentityModel socialLink) {
+    public UserModel getUserByFederatedIdentity(FederatedIdentityModel socialLink, RealmModel realm) {
         if (socialLink == null) return null;
         if (!realm.isIdentityFederationEnabled()) return null;
 
         if (realmInvalidations.contains(realm.getId())) {
-            return getDelegate().getUserByFederatedIdentity(realm, socialLink);
+            return getDelegate().getUserByFederatedIdentity(socialLink, realm);
         }
         String cacheKey = getUserByFederatedIdentityCacheKey(realm.getId(), socialLink);
         if (invalidations.contains(cacheKey)) {
-            return getDelegate().getUserByFederatedIdentity(realm, socialLink);
+            return getDelegate().getUserByFederatedIdentity(socialLink, realm);
         }
         UserListQuery query = cache.get(cacheKey, UserListQuery.class);
 
         String userId = null;
         if (query == null) {
             Long loaded = cache.getCurrentRevision(cacheKey);
-            UserModel model = getDelegate().getUserByFederatedIdentity(realm, socialLink);
+            UserModel model = getDelegate().getUserByFederatedIdentity(socialLink, realm);
             if (model == null) return null;
             userId = model.getId();
             if (invalidations.contains(userId)) return model;
@@ -455,10 +446,10 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
             userId = query.getUsers().iterator().next();
             if (invalidations.contains(userId)) {
                 invalidations.add(cacheKey);
-                return getDelegate().getUserByFederatedIdentity(realm, socialLink);
+                return getDelegate().getUserByFederatedIdentity(socialLink, realm);
 
             }
-            return getUserById(realm, userId);
+            return getUserById(userId, realm);
         }
     }
 
@@ -536,17 +527,17 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
             userId = query.getUsers().iterator().next();
             if (invalidations.contains(userId)) {
                 logger.tracev("invalidated cache return delegate");
-                return getDelegate().getUserByUsername(realm, username);
+                return getDelegate().getUserByUsername(username, realm);
 
             }
             logger.trace("return getUserById");
-            return getUserById(realm, userId);
+            return getUserById(userId, realm);
         }
     }
 
     @Override
-    public CredentialValidationOutput getUserByCredential(RealmModel realm, CredentialInput input) {
-        return getDelegate().getUserByCredential(realm, input);
+    public Stream<UserModel> getUsersStream(RealmModel realm, boolean includeServiceAccounts) {
+        return getDelegate().getUsersStream(realm, includeServiceAccounts);
     }
 
     @Override
@@ -555,69 +546,89 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     }
 
     @Override
+    public int getUsersCount(RealmModel realm) {
+        return getUsersCount(realm, false);
+    }
+
+    @Override
     public int getUsersCount(RealmModel realm, Set<String> groupIds) {
         return getDelegate().getUsersCount(realm, groupIds);
     }
 
     @Override
-    public int getUsersCount(RealmModel realm, String search) {
-        return getDelegate().getUsersCount(realm, search);
+    public int getUsersCount(String search, RealmModel realm) {
+        return getDelegate().getUsersCount(search, realm);
     }
 
     @Override
-    public int getUsersCount(RealmModel realm, String search, Set<String> groupIds) {
-        return getDelegate().getUsersCount(realm, search, groupIds);
+    public int getUsersCount(String search, RealmModel realm, Set<String> groupIds) {
+        return getDelegate().getUsersCount(search, realm, groupIds);
     }
 
     @Override
-    public int getUsersCount(RealmModel realm, Map<String, String> params) {
-        return getDelegate().getUsersCount(realm, params);
+    public int getUsersCount(Map<String, String> params, RealmModel realm) {
+        return getDelegate().getUsersCount(params, realm);
     }
 
     @Override
-    public int getUsersCount(RealmModel realm, Map<String, String> params, Set<String> groupIds) {
-        return getDelegate().getUsersCount(realm, params, groupIds);
+    public int getUsersCount(Map<String, String> params, RealmModel realm, Set<String> groupIds) {
+        return getDelegate().getUsersCount(params, realm, groupIds);
     }
 
     @Override
-    public Stream<UserModel> searchForUserStream(RealmModel realm, String search) {
-        return getDelegate().searchForUserStream(realm, search);
+    public Stream<UserModel> getUsersStream(RealmModel realm, Integer firstResult, Integer maxResults, boolean includeServiceAccounts) {
+        return getDelegate().getUsersStream(realm, firstResult, maxResults, includeServiceAccounts);
     }
 
     @Override
-    public Stream<UserModel> searchForUserStream(RealmModel realm, String search, Integer firstResult, Integer maxResults) {
-        return getDelegate().searchForUserStream(realm, search, firstResult, maxResults);
+    public Stream<UserModel> getUsersStream(RealmModel realm) {
+        return getUsersStream(realm, false);
     }
 
     @Override
-    public Stream<UserModel> searchForUserStream(RealmModel realm, Map<String, String> attributes) {
-        return getDelegate().searchForUserStream(realm, attributes);
+    public Stream<UserModel> getUsersStream(RealmModel realm, int firstResult, int maxResults) {
+         return getUsersStream(realm, firstResult, maxResults, false);
     }
 
     @Override
-    public Stream<UserModel> searchForUserStream(RealmModel realm, Map<String, String> attributes, Integer firstResult, Integer maxResults) {
-        return getDelegate().searchForUserStream(realm, attributes, firstResult, maxResults);
+    public Stream<UserModel> searchForUserStream(String search, RealmModel realm) {
+        return getDelegate().searchForUserStream(search, realm);
     }
 
     @Override
-    public Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm, String attrName, String attrValue) {
-        return getDelegate().searchForUserByUserAttributeStream(realm, attrName, attrValue);
+    public Stream<UserModel> searchForUserStream(String search, RealmModel realm, Integer firstResult, Integer maxResults) {
+        return getDelegate().searchForUserStream(search, realm, firstResult, maxResults);
     }
 
     @Override
-    public Stream<FederatedIdentityModel> getFederatedIdentitiesStream(RealmModel realm, UserModel user) {
+    public Stream<UserModel> searchForUserStream(Map<String, String> attributes, RealmModel realm) {
+        return getDelegate().searchForUserStream(attributes, realm);
+    }
+
+    @Override
+    public Stream<UserModel> searchForUserStream(Map<String, String> attributes, RealmModel realm, Integer firstResult, Integer maxResults) {
+        return getDelegate().searchForUserStream(attributes, realm, firstResult, maxResults);
+    }
+
+    @Override
+    public Stream<UserModel> searchForUserByUserAttributeStream(String attrName, String attrValue, RealmModel realm) {
+        return getDelegate().searchForUserByUserAttributeStream(attrName, attrValue, realm);
+    }
+
+    @Override
+    public Stream<FederatedIdentityModel> getFederatedIdentitiesStream(UserModel user, RealmModel realm) {
         logger.tracev("getFederatedIdentities: {0}", user.getUsername());
 
         String cacheKey = getFederatedIdentityLinksCacheKey(user.getId());
         if (realmInvalidations.contains(realm.getId()) || invalidations.contains(user.getId()) || invalidations.contains(cacheKey)) {
-            return getDelegate().getFederatedIdentitiesStream(realm, user);
+            return getDelegate().getFederatedIdentitiesStream(user, realm);
         }
 
         CachedFederatedIdentityLinks cachedLinks = cache.get(cacheKey, CachedFederatedIdentityLinks.class);
 
         if (cachedLinks == null) {
             Long loaded = cache.getCurrentRevision(cacheKey);
-            Set<FederatedIdentityModel> federatedIdentities = getDelegate().getFederatedIdentitiesStream(realm, user)
+            Set<FederatedIdentityModel> federatedIdentities = getDelegate().getFederatedIdentitiesStream(user, realm)
                     .collect(Collectors.toSet());
             cachedLinks = new CachedFederatedIdentityLinks(loaded, cacheKey, realm, federatedIdentities);
             cache.addRevisioned(cachedLinks, startupRevision);
@@ -628,15 +639,15 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     }
 
     @Override
-    public FederatedIdentityModel getFederatedIdentity(RealmModel realm, UserModel user, String socialProvider) {
+    public FederatedIdentityModel getFederatedIdentity(UserModel user, String socialProvider, RealmModel realm) {
         logger.tracev("getFederatedIdentity: {0} {1}", user.getUsername(), socialProvider);
 
         String cacheKey = getFederatedIdentityLinksCacheKey(user.getId());
         if (realmInvalidations.contains(realm.getId()) || invalidations.contains(user.getId()) || invalidations.contains(cacheKey)) {
-            return getDelegate().getFederatedIdentity(realm, user, socialProvider);
+            return getDelegate().getFederatedIdentity(user, socialProvider, realm);
         }
 
-        return getFederatedIdentitiesStream(realm, user)
+        return getFederatedIdentitiesStream(user, realm)
                 .filter(socialLink -> Objects.equals(socialLink.getIdentityProvider(), socialProvider))
                 .findFirst().orElse(null);
     }
@@ -737,7 +748,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     @Override
     public void setNotBeforeForUser(RealmModel realm, UserModel user, int notBefore) {
         if (!isRegisteredForInvalidation(realm, user.getId())) {
-            UserModel foundUser = getUserById(realm, user.getId());
+            UserModel foundUser = getUserById(user.getId(), realm);
             if (foundUser instanceof UserAdapter) {
                 ((UserAdapter) foundUser).invalidate();
             }
@@ -753,7 +764,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
             return getDelegate().getNotBeforeOfUser(realm, user);
         }
 
-        UserModel foundUser = getUserById(realm, user.getId());
+        UserModel foundUser = getUserById(user.getId(), realm);
         if (foundUser instanceof UserAdapter) {
             return ((UserAdapter) foundUser).cached.getNotBefore();
         } else {
@@ -782,7 +793,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     // just in case the transaction is rolled back you need to invalidate the user and all cache queries for that user
     protected void fullyInvalidateUser(RealmModel realm, UserModel user) {
         Stream<FederatedIdentityModel> federatedIdentities = realm.isIdentityFederationEnabled() ?
-                getFederatedIdentitiesStream(realm, user) : Stream.empty();
+                getFederatedIdentitiesStream(user, realm) : Stream.empty();
 
         UserFullInvalidationEvent event = UserFullInvalidationEvent.create(user.getId(), user.getUsername(), user.getEmail(), realm.getId(), realm.isIdentityFederationEnabled(), federatedIdentities);
 
@@ -816,7 +827,7 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
     @Override
     public boolean removeFederatedIdentity(RealmModel realm, UserModel user, String socialProvider) {
         // Needs to invalidate both directions
-        FederatedIdentityModel socialLink = getFederatedIdentity(realm, user, socialProvider);
+        FederatedIdentityModel socialLink = getFederatedIdentity(user, socialProvider, realm);
 
         UserFederationLinkRemovedEvent event = UserFederationLinkRemovedEvent.create(user.getId(), realm.getId(), socialLink);
         cache.federatedIdentityLinkRemovedInvalidation(user.getId(), realm.getId(), event.getIdentityProviderId(), event.getSocialUserId(), invalidations);
@@ -900,17 +911,4 @@ public class UserCacheSession implements UserCache, OnCreateComponent, OnUpdateC
         invalidationEvents.add(UserCacheRealmInvalidationEvent.create(realmId));
     }
 
-    @Override
-    public void onUpdate(KeycloakSession session, RealmModel realm, ComponentModel oldModel, ComponentModel newModel) {
-        if (getDelegate() instanceof OnUpdateComponent) {
-            ((OnUpdateComponent) getDelegate()).onUpdate(session, realm, oldModel, newModel);
-        }
-    }
-
-    @Override
-    public void onCreate(KeycloakSession session, RealmModel realm, ComponentModel model) {
-        if (getDelegate() instanceof OnCreateComponent) {
-            ((OnCreateComponent) getDelegate()).onCreate(session, realm, model);
-        }
-    }
 }

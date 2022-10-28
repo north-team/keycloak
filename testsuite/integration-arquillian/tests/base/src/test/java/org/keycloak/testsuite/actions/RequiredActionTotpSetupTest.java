@@ -47,13 +47,10 @@ import org.keycloak.testsuite.pages.LoginConfigTotpPage;
 import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.pages.LoginTotpPage;
 import org.keycloak.testsuite.pages.RegisterPage;
-import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
-import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.RealmBuilder;
 import org.keycloak.testsuite.util.UserBuilder;
 import org.openqa.selenium.By;
 
-import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -282,8 +279,6 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
 
         String customOtpLabel = "my-custom-otp-label";
 
-        setOtpTimeOffset(TimeBasedOTP.DEFAULT_INTERVAL_SECONDS, totp);
-
         // Set OTP label to a custom value
         totpPage.configure(totp.generateTOTP(totpPage.getTotpSecret()), customOtpLabel);
 
@@ -328,18 +323,7 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
     }
 
     @Test
-    public void setupTotpExistingReusableCodeEnabled() throws IOException {
-        try (RealmAttributeUpdater rau = new RealmAttributeUpdater(testRealm()).setOtpPolicyCodeReusable(true).update()) {
-            setupTotpExisting(true);
-        }
-    }
-
-    @Test
-    public void setupTotpExistingReusableCodeDisabled() {
-        setupTotpExisting(false); // Default value
-    }
-
-    public void setupTotpExisting(boolean reusableCodesEnabled) {
+    public void setupTotpExisting() {
         loginPage.open();
 
         loginPage.login("test-user@localhost", "password");
@@ -357,26 +341,18 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
 
         EventRepresentation loginEvent = events.expectLogin().session(authSessionId).assertEvent();
 
-        OAuthClient.AccessTokenResponse tokenResponse = sendTokenRequestAndGetResponse(loginEvent);
-        oauth.idTokenHint(tokenResponse.getIdToken()).openLogout();
+        oauth.openLogout();
 
         events.expectLogout(authSessionId).assertEvent();
-
-        if (!reusableCodesEnabled) {
-            setTimeOffset(TimeBasedOTP.DEFAULT_INTERVAL_SECONDS);
-        }
 
         loginPage.open();
         loginPage.login("test-user@localhost", "password");
         String src = driver.getPageSource();
         loginTotpPage.login(totp.generateTOTP(totpSecret));
 
-        if (!reusableCodesEnabled) {
-            loginTotpPage.assertCurrent();
-        } else {
-            assertEquals(RequestType.AUTH_RESPONSE, appPage.getRequestType());
-            events.expectLogin().assertEvent();
-        }
+        assertEquals(RequestType.AUTH_RESPONSE, appPage.getRequestType());
+
+        events.expectLogin().assertEvent();
     }
 
     //KEYCLOAK-15511
@@ -426,11 +402,8 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
         EventRepresentation loginEvent = events.expectLogin().user(userId).detail(Details.USERNAME, "setuptotp2").assertEvent();
 
         // Logout
-        OAuthClient.AccessTokenResponse tokenResponse = sendTokenRequestAndGetResponse(loginEvent);
-        oauth.idTokenHint(tokenResponse.getIdToken()).openLogout();
+        oauth.openLogout();
         events.expectLogout(loginEvent.getSessionId()).user(userId).assertEvent();
-
-        setOtpTimeOffset(TimeBasedOTP.DEFAULT_INTERVAL_SECONDS, totp);
 
         // Try to login after logout
         loginPage.open();
@@ -457,10 +430,8 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
         events.expectAccount(EventType.REMOVE_TOTP).user(userId).assertEvent();
 
         // Logout
-        accountTotpPage.logout();
-        events.expectLogout(loginEvent.getSessionId()).user(userId).detail(Details.REDIRECT_URI, oauth.AUTH_SERVER_ROOT + "/realms/test/account/totp").assertEvent();
-
-        setOtpTimeOffset(TimeBasedOTP.DEFAULT_INTERVAL_SECONDS, totp);
+        oauth.openLogout();
+        events.expectLogout(loginEvent.getSessionId()).user(userId).assertEvent();
 
         // Try to login
         loginPage.open();
@@ -509,12 +480,9 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
 
         EventRepresentation loginEvent = events.expectLogin().session(sessionId).assertEvent();
 
-        OAuthClient.AccessTokenResponse tokenResponse = sendTokenRequestAndGetResponse(loginEvent);
-        oauth.idTokenHint(tokenResponse.getIdToken()).openLogout();
+        oauth.openLogout();
 
         events.expectLogout(loginEvent.getSessionId()).assertEvent();
-
-        setOtpTimeOffset(TimeBasedOTP.DEFAULT_INTERVAL_SECONDS, timeBased);
 
         loginPage.open();
         loginPage.login("test-user@localhost", "password");
@@ -564,8 +532,7 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
 
         EventRepresentation loginEvent = events.expectLogin().session(sessionId).assertEvent();
 
-        OAuthClient.AccessTokenResponse tokenResponse = sendTokenRequestAndGetResponse(loginEvent);
-        oauth.idTokenHint(tokenResponse.getIdToken()).openLogout();
+        oauth.openLogout();
 
         events.expectLogout(loginEvent.getSessionId()).assertEvent();
 
@@ -577,10 +544,9 @@ public class RequiredActionTotpSetupTest extends AbstractTestRealmKeycloakTest {
 
         assertEquals(RequestType.AUTH_RESPONSE, appPage.getRequestType());
 
-        loginEvent = events.expectLogin().assertEvent();
+        events.expectLogin().assertEvent();
 
-        tokenResponse = sendTokenRequestAndGetResponse(loginEvent);
-        oauth.idTokenHint(tokenResponse.getIdToken()).openLogout();
+        oauth.openLogout();
         events.expectLogout(null).session(AssertEvents.isUUID()).assertEvent();
 
         // test lookAheadWindow

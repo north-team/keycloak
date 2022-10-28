@@ -19,9 +19,7 @@ package org.keycloak.services.resources.admin;
 
 import static org.keycloak.protocol.ProtocolMapperUtils.isEnabled;
 
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import javax.ws.rs.GET;
@@ -49,7 +47,6 @@ import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.representations.AccessToken;
-import org.keycloak.representations.IDToken;
 import org.keycloak.services.Urls;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.AuthenticationSessionManager;
@@ -148,55 +145,6 @@ public class ClientScopeEvaluateResource {
     }
 
     /**
-     * Create JSON with payload of example user info
-     *
-     * @return
-     */
-    @GET
-    @Path("generate-example-userinfo")
-    @NoCache
-    @Produces(MediaType.APPLICATION_JSON)
-    public Map<String, Object> generateExampleUserinfo(@QueryParam("scope") String scopeParam, @QueryParam("userId") String userId) {
-        auth.clients().requireView(client);
-
-        UserModel user = getUserModel(userId);
-
-        logger.debugf("generateExampleUserinfo invoked. User: %s", user.getUsername());
-
-        return sessionAware(user, scopeParam, (userSession, clientSessionCtx) -> {
-            AccessToken userInfo = new AccessToken();
-            TokenManager tokenManager = new TokenManager();
-
-            tokenManager.transformUserInfoAccessToken(session, userInfo, userSession, clientSessionCtx);
-            return tokenManager.generateUserInfoClaims(userInfo, user);
-        });
-    }
-
-    /**
-     * Create JSON with payload of example id token
-     *
-     * @return
-     */
-    @GET
-    @Path("generate-example-id-token")
-    @NoCache
-    @Produces(MediaType.APPLICATION_JSON)
-    public IDToken generateExampleIdToken(@QueryParam("scope") String scopeParam, @QueryParam("userId") String userId) {
-        auth.clients().requireView(client);
-
-        UserModel user = getUserModel(userId);
-
-        logger.debugf("generateExampleIdToken invoked. User: %s, Scope param: %s", user.getUsername(), scopeParam);
-
-        return sessionAware(user, scopeParam, (userSession, clientSessionCtx) ->
-        {
-            TokenManager tokenManager = new TokenManager();
-            return tokenManager.responseBuilder(realm, client, null, session, userSession, clientSessionCtx)
-                    .generateAccessToken().generateIDToken().getIdToken();
-        });
-    }
-
-    /**
      * Create JSON with payload of example access token
      *
      * @return
@@ -208,20 +156,25 @@ public class ClientScopeEvaluateResource {
     public AccessToken generateExampleAccessToken(@QueryParam("scope") String scopeParam, @QueryParam("userId") String userId) {
         auth.clients().requireView(client);
 
-        UserModel user = getUserModel(userId);
+        if (userId == null) {
+            throw new NotFoundException("No userId provided");
+        }
+
+        UserModel user = session.users().getUserById(userId, realm);
+        if (user == null) {
+            throw new NotFoundException("No user found");
+        }
 
         logger.debugf("generateExampleAccessToken invoked. User: %s, Scope param: %s", user.getUsername(), scopeParam);
 
-        return sessionAware(user, scopeParam, (userSession, clientSessionCtx) ->
-        {
-            TokenManager tokenManager = new TokenManager();
-            return tokenManager.responseBuilder(realm, client, null, session, userSession, clientSessionCtx)
-                    .generateAccessToken().getAccessToken();
-        });
+        AccessToken token = generateToken(user, scopeParam);
+        return token;
     }
 
-    private<R> R sessionAware(UserModel user, String scopeParam, BiFunction<UserSessionModel, ClientSessionContext,R> function) {
+
+    private AccessToken generateToken(UserModel user, String scopeParam) {
         AuthenticationSessionModel authSession = null;
+        UserSessionModel userSession = null;
         AuthenticationSessionManager authSessionManager = new AuthenticationSessionManager(session);
 
         try {
@@ -233,13 +186,18 @@ public class ClientScopeEvaluateResource {
             authSession.setClientNote(OIDCLoginProtocol.ISSUER, Urls.realmIssuer(uriInfo.getBaseUri(), realm.getName()));
             authSession.setClientNote(OIDCLoginProtocol.SCOPE_PARAM, scopeParam);
 
-            UserSessionModel userSession = session.sessions().createUserSession(authSession.getParentSession().getId(), realm, user, user.getUsername(),
+            userSession = session.sessions().createUserSession(authSession.getParentSession().getId(), realm, user, user.getUsername(),
                     clientConnection.getRemoteAddr(), "example-auth", false, null, null, UserSessionModel.SessionPersistenceState.TRANSIENT);
 
             AuthenticationManager.setClientScopesInSession(authSession);
             ClientSessionContext clientSessionCtx = TokenManager.attachAuthenticationSession(session, userSession, authSession);
 
-            return function.apply(userSession, clientSessionCtx);
+            TokenManager tokenManager = new TokenManager();
+
+            TokenManager.AccessTokenResponseBuilder responseBuilder = tokenManager.responseBuilder(realm, client, null, session, userSession, clientSessionCtx)
+                    .generateAccessToken();
+
+            return responseBuilder.getAccessToken();
 
         } finally {
             if (authSession != null) {
@@ -248,17 +206,6 @@ public class ClientScopeEvaluateResource {
         }
     }
 
-    private UserModel getUserModel(String userId) {
-        if (userId == null) {
-            throw new NotFoundException("No userId provided");
-        }
-
-        UserModel user = session.users().getUserById(realm, userId);
-        if (user == null) {
-            throw new NotFoundException("No user found");
-        }
-        return user;
-    }
 
     public static class ProtocolMapperEvaluationRepresentation {
 

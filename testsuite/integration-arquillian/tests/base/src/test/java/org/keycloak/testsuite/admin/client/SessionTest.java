@@ -24,7 +24,6 @@ import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.common.Profile;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
-import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
 import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
@@ -34,10 +33,7 @@ import org.keycloak.testsuite.util.AdminEventPaths;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.keycloak.testsuite.auth.page.AuthRealm.TEST;
 
 /**
  *
@@ -63,8 +59,8 @@ public class SessionTest extends AbstractClientTest {
     @Override
     public void setDefaultPageUriParameters() {
         super.setDefaultPageUriParameters();
-        testRealmAccountManagementPage.setAuthRealm(TEST);
-        loginPage.setAuthRealm(TEST);
+        testRealmAccountManagementPage.setAuthRealm(getRealmId());
+        loginPage.setAuthRealm(getRealmId());
     }
 
     @Test
@@ -107,27 +103,6 @@ public class SessionTest extends AbstractClientTest {
         assertNotNull(rep.getIpAddress());
         assertNotNull(rep.getLastAccess());
         assertNotNull(rep.getStart());
-        assertFalse(rep.isRememberMe());
-
-        testRealmAccountManagementPage.signOut();
-    }
-
-    @Test
-    public void testGetUserSessionsWithRememberMe() {
-        RealmRepresentation realm = adminClient.realm(TEST).toRepresentation();
-        realm.setRememberMe(true);
-        adminClient.realm(TEST).update(realm);
-
-        testRealmAccountManagementPage.navigateTo();
-        loginPage.form().rememberMe(true);
-        loginPage.form().login(testUser);
-
-        ClientResource account = findClientResourceById("account");
-        List<UserSessionRepresentation> sessions = account.getUserSessions(0, 5);
-        assertEquals(1, sessions.size());
-
-        UserSessionRepresentation rep = sessions.get(0);
-        assertTrue(rep.isRememberMe());
 
         testRealmAccountManagementPage.signOut();
     }

@@ -61,6 +61,7 @@ public class CachedClient extends AbstractRevisioned implements InRealm {
     protected String managementUrl;
     protected String rootUrl;
     protected String baseUrl;
+    protected List<String> defaultRoles = new LinkedList<>();
     protected boolean bearerOnly;
     protected boolean consentRequired;
     protected boolean standardFlowEnabled;
@@ -98,6 +99,7 @@ public class CachedClient extends AbstractRevisioned implements InRealm {
         managementUrl = model.getManagementUrl();
         rootUrl = model.getRootUrl();
         baseUrl = model.getBaseUrl();
+        defaultRoles.addAll(model.getDefaultRolesStream().collect(Collectors.toList()));
         bearerOnly = model.isBearerOnly();
         consentRequired = model.isConsentRequired();
         standardFlowEnabled = model.isStandardFlowEnabled();
@@ -109,11 +111,11 @@ public class CachedClient extends AbstractRevisioned implements InRealm {
         registeredNodes = new TreeMap<>(model.getRegisteredNodes());
 
         defaultClientScopesIds = new LinkedList<>();
-        for (ClientScopeModel clientScope : model.getClientScopes(true).values()) {
+        for (ClientScopeModel clientScope : model.getClientScopes(true, false).values()) {
             defaultClientScopesIds.add(clientScope.getId());
         }
         optionalClientScopesIds = new LinkedList<>();
-        for (ClientScopeModel clientScope : model.getClientScopes(false).values()) {
+        for (ClientScopeModel clientScope : model.getClientScopes(false, false).values()) {
             optionalClientScopesIds.add(clientScope.getId());
         }
     }
@@ -208,6 +210,10 @@ public class CachedClient extends AbstractRevisioned implements InRealm {
 
     public String getBaseUrl() {
         return baseUrl;
+    }
+
+    public List<String> getDefaultRoles() {
+        return defaultRoles;
     }
 
     public boolean isBearerOnly() {

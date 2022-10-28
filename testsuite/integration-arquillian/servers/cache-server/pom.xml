@@ -21,17 +21,21 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-servers</artifactId>
-        <version>999-SNAPSHOT</version>
+        <version>12.0.4</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>integration-arquillian-servers-cache-server</artifactId>
     <packaging>pom</packaging>
-    <name>Keycloak Arquillian Integration TestSuite - Cache Server</name>
+    <name>Cache Server</name>
+
+    <properties>
+        <auth.server.worker.io-threads>${jboss.default.worker.io-threads}</auth.server.worker.io-threads>
+        <auth.server.worker.task-max-threads>${jboss.default.worker.task-max-threads}</auth.server.worker.task-max-threads>
+    </properties>
 
     <modules>
-        <module>infinispan</module>
-        <module>legacy</module>
+        <module>jboss</module>
     </modules>
 
 </project>

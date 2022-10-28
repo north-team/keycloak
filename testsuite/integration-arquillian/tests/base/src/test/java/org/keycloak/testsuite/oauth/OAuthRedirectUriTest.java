@@ -80,7 +80,7 @@ public class OAuthRedirectUriTest extends AbstractKeycloakTest {
     }
 
     @Override
-    public void afterAbstractKeycloakTest() throws Exception {
+    public void afterAbstractKeycloakTest() {
         super.afterAbstractKeycloakTest();
 
         server.stop(0);

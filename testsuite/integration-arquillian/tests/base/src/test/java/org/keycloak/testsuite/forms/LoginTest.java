@@ -22,7 +22,6 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
-import org.keycloak.admin.client.resource.ClientResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.common.Profile;
 import org.keycloak.common.util.Retry;
@@ -33,21 +32,17 @@ import org.keycloak.events.EventType;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
 import org.keycloak.models.BrowserSecurityHeaders;
-import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.utils.SessionTimeoutHelper;
-import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.representations.idm.ClientRepresentation;
-import org.keycloak.representations.idm.ClientScopeRepresentation;
 import org.keycloak.representations.idm.EventRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
-import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
-import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.console.page.AdminConsole;
 import org.keycloak.testsuite.pages.AccountUpdateProfilePage;
 import org.keycloak.testsuite.pages.AppPage;
@@ -59,7 +54,6 @@ import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
 import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.ContainerAssume;
 import org.keycloak.testsuite.util.DroneUtils;
-import org.keycloak.testsuite.util.InfinispanTestTimeServiceRule;
 import org.keycloak.testsuite.util.JavascriptBrowser;
 import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.Matchers;
@@ -67,7 +61,6 @@ import org.keycloak.testsuite.util.RealmBuilder;
 import org.keycloak.testsuite.util.TokenSignatureUtil;
 import org.keycloak.testsuite.util.UserBuilder;
 import org.keycloak.testsuite.util.WaitUtils;
-import java.io.Closeable;
 import org.openqa.selenium.WebDriver;
 
 import javax.ws.rs.client.Client;
@@ -87,7 +80,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-import static org.keycloak.common.Profile.Feature.DYNAMIC_SCOPES;
 import static org.keycloak.testsuite.admin.ApiUtil.findClientByClientId;
 import static org.keycloak.testsuite.util.OAuthClient.AUTH_SERVER_ROOT;
 import static org.keycloak.testsuite.util.OAuthClient.SERVER_ROOT;
@@ -141,7 +133,19 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     protected AppPage appPage;
 
     @Page
+    @JavascriptBrowser
+    protected AdminConsole jsAdminConsole;
+
+    @Drone
+    @JavascriptBrowser
+    protected WebDriver jsDriver;
+
+    @Page
     protected LoginPage loginPage;
+
+    @Page
+    @JavascriptBrowser
+    protected LoginPage jsLoginPage;
 
     @Page
     protected ErrorPage errorPage;
@@ -151,9 +155,6 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
 
     @Page
     protected LoginPasswordUpdatePage updatePasswordPage;
-
-    @Rule
-    public InfinispanTestTimeServiceRule ispnTestTimeService = new InfinispanTestTimeServiceRule(this);
 
     private static String userId;
 
@@ -218,6 +219,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
         client.close();
     }
 
+    @AuthServerContainerExclude(value = AuthServerContainerExclude.AuthServer.QUARKUS, details = "Unstable for Quarkus, review later")
     @Test
     public void loginWithLongRedirectUri() throws Exception {
         try (AutoCloseable c = new RealmAttributeUpdater(adminClient.realm("test"))
@@ -751,8 +753,9 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     @Test
     public void loginExpiredCode() {
         loginPage.open();
-        // authSession expired and removed from the storage
         setTimeOffset(5000);
+        // No explicitly call "removeExpired". Hence authSession will still exists, but will be expired
+        //testingClient.testing().removeExpired("test");
 
         loginPage.login("login@test.com", "password");
         loginPage.assertCurrent();
@@ -760,7 +763,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
         Assert.assertEquals("Your login attempt timed out. Login will start from the beginning.", loginPage.getError());
         setTimeOffset(0);
 
-        events.expectLogin().client((String) null).user((String) null).session((String) null).error(Errors.EXPIRED_CODE).clearDetails()
+        events.expectLogin().user((String) null).session((String) null).error(Errors.EXPIRED_CODE).clearDetails()
                 .assertEvent();
     }
 
@@ -769,13 +772,15 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     public void loginExpiredCodeWithExplicitRemoveExpired() {
         loginPage.open();
         setTimeOffset(5000);
+        // Explicitly call "removeExpired". Hence authSession won't exist, but will be restarted from the KC_RESTART
+        testingClient.testing().removeExpired("test");
 
         loginPage.login("login@test.com", "password");
 
+        //loginPage.assertCurrent();
         loginPage.assertCurrent();
 
         Assert.assertEquals("Your login attempt timed out. Login will start from the beginning.", loginPage.getError());
-
         setTimeOffset(0);
 
         events.expectLogin().user((String) null).session((String) null).error(Errors.EXPIRED_CODE).clearDetails()
@@ -792,18 +797,24 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
                 })
                 .update()) {
 
-            loginPage.open();
-            loginPage.login("login@test.com", "password");
+            DroneUtils.addWebDriver(jsDriver);
 
-            events.expectLogin().user(userId).assertEvent();
+            jsAdminConsole.setAdminRealm(testRealm().toRepresentation().getRealm());
+
+            jsAdminConsole.navigateTo();
+            assertCurrentUrlStartsWithLoginUrlOf(jsAdminConsole);
+
+            // login for the first time
+            jsLoginPage.login("admin", "admin");
 
             // wait for a timeout
-            setTimeOffset(6);
+            TimeUnit.SECONDS.sleep(5);
+            Retry.execute(() -> jsLoginPage.assertCurrent(), 20, 500);
 
-            loginPage.open();
-            loginPage.login("login@test.com", "password");
+            // try to re-login immediately, it should be successful i.e without "You took too long to login. Login process starting from beginning." message
+            jsLoginPage.login("admin", "admin");
 
-            events.expectLogin().user(userId).assertEvent();
+            assertFalse(jsLoginPage.isCurrent());
         }
     }
 
@@ -823,26 +834,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
         Assert.assertNotNull(link, thirdParty.getBaseUrl());
     }
 
-    @Test
-    public void loginWithDisabledCookies() {
-        String userId = adminClient.realm("test").users().search("test-user@localhost").get(0).getId();
-        oauth.clientId("test-app");
-        oauth.openLoginForm();
 
-        driver.manage().deleteAllCookies();
-
-
-        // Cookie has been deleted or disabled, the error shown in the UI should be Errors.COOKIE_NOT_FOUND
-        loginPage.login("login@test.com", "password");
-
-        events.expect(EventType.LOGIN_ERROR)
-                .user(new UserRepresentation())
-                .client(new ClientRepresentation())
-                .error(Errors.COOKIE_NOT_FOUND)
-                .assertEvent();
-
-        errorPage.assertCurrent();
-    }
 
     @Test
     public void openLoginFormWithDifferentApplication() throws Exception {
@@ -882,10 +874,9 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     @Test
     @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginRememberMeExpiredIdle() throws Exception {
-        try (Closeable c = new RealmAttributeUpdater(adminClient.realm("test"))
-          .setSsoSessionIdleTimeoutRememberMe(1)
-          .setRememberMe(true)
-          .update()) {
+        setRememberMe(true, 1, null);
+
+        try {
             // login form shown after redirect from app
             oauth.clientId("test-app");
             oauth.redirectUri(OAuthClient.APP_ROOT + "/auth");
@@ -905,16 +896,17 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
             // trying to open the account page with an expired idle timeout should redirect back to the login page.
             appPage.openAccount();
             loginPage.assertCurrent();
+        } finally {
+            setRememberMe(false);
         }
     }
 
     @Test
     @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginRememberMeExpiredMaxLifespan() throws Exception {
-        try (Closeable c = new RealmAttributeUpdater(adminClient.realm("test"))
-          .setSsoSessionMaxLifespanRememberMe(1)
-          .setRememberMe(true)
-          .update()) {
+        setRememberMe(true, null, 1);
+
+        try {
             // login form shown after redirect from app
             oauth.clientId("test-app");
             oauth.redirectUri(OAuthClient.APP_ROOT + "/auth");
@@ -934,33 +926,9 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
             // trying to open the account page with an expired lifespan should redirect back to the login page.
             appPage.openAccount();
             loginPage.assertCurrent();
+        } finally {
+            setRememberMe(false);
         }
-    }
-
-    @Test
-    @EnableFeature(value = Profile.Feature.DYNAMIC_SCOPES, skipRestart = true)
-    public void loginSuccessfulWithDynamicScope() {
-        ProfileAssume.assumeFeatureEnabled(DYNAMIC_SCOPES);
-        ClientScopeRepresentation clientScope = new ClientScopeRepresentation();
-        clientScope.setName("dynamic");
-        clientScope.setAttributes(new HashMap<String, String>() {{
-            put(ClientScopeModel.IS_DYNAMIC_SCOPE, "true");
-            put(ClientScopeModel.DYNAMIC_SCOPE_REGEXP, "dynamic:*");
-        }});
-        clientScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
-        Response response = testRealm().clientScopes().create(clientScope);
-        String scopeId = ApiUtil.getCreatedId(response);
-        getCleanup().addClientScopeId(scopeId);
-        response.close();
-
-        ClientResource testApp = ApiUtil.findClientByClientId(testRealm(), "test-app");
-        ClientRepresentation testAppRep = testApp.toRepresentation();
-        testApp.update(testAppRep);
-        testApp.addOptionalClientScope(scopeId);
-
-        oauth.scope("dynamic:scope");
-        oauth.doLogin("login@test.com", "password");
-        events.expectLogin().user(userId).assertEvent();
     }
 
 }

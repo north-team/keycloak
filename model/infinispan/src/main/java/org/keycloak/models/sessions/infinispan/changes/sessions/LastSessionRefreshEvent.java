@@ -22,7 +22,6 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import org.infinispan.commons.marshall.Externalizer;
 import org.infinispan.commons.marshall.MarshallUtil;
@@ -45,15 +44,6 @@ public class LastSessionRefreshEvent implements ClusterEvent {
         return lastSessionRefreshes;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        return o instanceof LastSessionRefreshEvent;
-    }
-
-    @Override
-    public int hashCode() {
-        return 1;
-    }
 
     public static class ExternalizerImpl implements Externalizer<LastSessionRefreshEvent> {
 

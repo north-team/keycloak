@@ -1,25 +1,8 @@
-/*
- * Copyright 2022 Red Hat, Inc. and/or its affiliates
- * and other contributors as indicated by the @author tags.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.keycloak.authorization.policy.provider.client;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -67,7 +50,7 @@ public class ClientPolicyProviderFactory implements PolicyProviderFactory<Client
     @Override
     public ClientPolicyRepresentation toRepresentation(Policy policy, AuthorizationProvider authorization) {
         ClientPolicyRepresentation representation = new ClientPolicyRepresentation();
-        representation.setClients(getClients(policy));
+        representation.setClients(new HashSet<>(Arrays.asList(getClients(policy))));
         return representation;
     }
 
@@ -88,7 +71,7 @@ public class ClientPolicyProviderFactory implements PolicyProviderFactory<Client
 
     @Override
     public void onImport(Policy policy, PolicyRepresentation representation, AuthorizationProvider authorization) {
-        updateClients(policy, getClients(policy), authorization);
+        updateClients(policy, new HashSet<>(Arrays.asList(getClients(policy))), authorization);
     }
 
     @Override
@@ -126,10 +109,10 @@ public class ClientPolicyProviderFactory implements PolicyProviderFactory<Client
                 PolicyStore policyStore = storeFactory.getPolicyStore();
                 ClientModel removedClient = ((ClientRemovedEvent) event).getClient();
                 ResourceServerStore resourceServerStore = storeFactory.getResourceServerStore();
-                ResourceServer resourceServer = resourceServerStore.findByClient(removedClient);
+                ResourceServer resourceServer = resourceServerStore.findById(removedClient.getId());
 
                 if (resourceServer != null) {
-                    policyStore.findByType(resourceServer, getId()).forEach(policy -> {
+                    policyStore.findByType(getId(), resourceServer.getId()).forEach(policy -> {
                         List<String> clients = new ArrayList<>();
 
                         for (String clientId : getClients(policy)) {
@@ -140,7 +123,7 @@ public class ClientPolicyProviderFactory implements PolicyProviderFactory<Client
 
                         try {
                             if (clients.isEmpty()) {
-                                policyStore.delete(removedClient.getRealm(), policy.getId());
+                                policyStore.delete(policy.getId());
                             } else {
                                 policy.putConfig("clients", JsonSerialization.writeValueAsString(clients));
                             }
@@ -193,17 +176,17 @@ public class ClientPolicyProviderFactory implements PolicyProviderFactory<Client
         }
     }
 
-    private Set<String> getClients(Policy policy) {
+    private String[] getClients(Policy policy) {
         String clients = policy.getConfig().get("clients");
 
         if (clients != null) {
             try {
-                return JsonSerialization.readValue(clients, Set.class);
+                return JsonSerialization.readValue(clients.getBytes(), String[].class);
             } catch (IOException e) {
                 throw new RuntimeException("Could not parse clients [" + clients + "] from policy config [" + policy.getName() + "].", e);
             }
         }
 
-        return Collections.emptySet();
+        return new String[]{};
     }
 }

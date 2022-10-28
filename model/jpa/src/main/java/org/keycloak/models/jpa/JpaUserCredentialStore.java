@@ -43,7 +43,7 @@ import static org.keycloak.utils.StreamsUtil.closing;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class JpaUserCredentialStore implements UserCredentialStore {
+public class JpaUserCredentialStore implements UserCredentialStore.Streams {
 
     // Typical priority difference between 2 credentials
     public static final int PRIORITY_DIFFERENCE = 10;

@@ -22,7 +22,6 @@ import org.keycloak.Config;
 import org.keycloak.common.util.StringPropertyReplacer;
 
 import java.util.Properties;
-import java.util.Set;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -129,7 +128,7 @@ public class JsonConfigProvider implements Config.ConfigProvider {
             }
             if (n.isTextual()) {
                 String v = replaceProperties(n.textValue());
-                return !v.isEmpty() ? Integer.valueOf(v) : defaultValue;
+                return !v.isEmpty() ? Integer.parseInt(v) : defaultValue;
             } else {
                 return n.intValue();
             }
@@ -151,7 +150,7 @@ public class JsonConfigProvider implements Config.ConfigProvider {
             }
             if (n.isTextual()) {
                 String v = replaceProperties(n.textValue());
-                return !v.isEmpty() ? Long.valueOf(v) : defaultValue;
+                return !v.isEmpty() ? Long.parseLong(v) : defaultValue;
             } else {
                 return n.longValue();
             }
@@ -173,7 +172,7 @@ public class JsonConfigProvider implements Config.ConfigProvider {
             }
             if (n.isTextual()) {
                 String v = replaceProperties(n.textValue());
-                return !v.isEmpty() ? Boolean.valueOf(v) : defaultValue;
+                return !v.isEmpty() ? Boolean.parseBoolean(v) : defaultValue;
             } else {
                 return n.booleanValue();
             }
@@ -182,11 +181,6 @@ public class JsonConfigProvider implements Config.ConfigProvider {
         @Override
         public Config.Scope scope(String... path) {
             return new JsonScope(getNode(config, path));
-        }
-
-        @Override
-        public Set<String> getPropertyNames() {
-            throw new UnsupportedOperationException("Not implemented");
         }
 
     }

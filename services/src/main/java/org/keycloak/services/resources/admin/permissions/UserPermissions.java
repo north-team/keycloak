@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Red Hat, Inc. and/or its affiliates
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,17 +29,16 @@ import org.keycloak.authorization.permission.ResourcePermission;
 import org.keycloak.authorization.policy.evaluation.EvaluationContext;
 import org.keycloak.authorization.store.PolicyStore;
 import org.keycloak.authorization.store.ResourceStore;
-import org.keycloak.common.Profile;
 import org.keycloak.models.AdminRoles;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.ImpersonationConstants;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.representations.idm.authorization.Permission;
 import org.keycloak.services.ForbiddenException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,20 +82,15 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
         this.session = session;
         this.authz = authz;
         this.root = root;
-        if (authz != null) {
-            policyStore = authz.getStoreFactory().getPolicyStore();
-            resourceStore = authz.getStoreFactory().getResourceStore();
-        } else {
-            policyStore = null;
-            resourceStore = null;
-        }
+        policyStore = authz.getStoreFactory().getPolicyStore();
+        resourceStore = authz.getStoreFactory().getResourceStore();
     }
 
 
     private void initialize() {
-        ResourceServer server = root.initializeRealmResourceServer();
-        if (server == null) return;
+        root.initializeRealmResourceServer();
         root.initializeRealmDefaultScopes();
+        ResourceServer server = root.realmResourceServer();
         Scope manageScope = root.realmManageScope();
         Scope viewScope = root.realmViewScope();
         Scope mapRolesScope = root.initializeRealmScope(MAP_ROLES_SCOPE);
@@ -104,9 +98,9 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
         Scope userImpersonatedScope = root.initializeRealmScope(USER_IMPERSONATED_SCOPE);
         Scope manageGroupMembershipScope = root.initializeRealmScope(MANAGE_GROUP_MEMBERSHIP_SCOPE);
 
-        Resource usersResource = resourceStore.findByName(server, USERS_RESOURCE);
+        Resource usersResource = resourceStore.findByName(USERS_RESOURCE, server.getId());
         if (usersResource == null) {
-            usersResource = resourceStore.create(server, USERS_RESOURCE, server.getClientId());
+            usersResource = resourceStore.create(USERS_RESOURCE, server, server.getId());
             Set<Scope> scopeset = new HashSet<>();
             scopeset.add(manageScope);
             scopeset.add(viewScope);
@@ -116,27 +110,27 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
             scopeset.add(userImpersonatedScope);
             usersResource.updateScopes(scopeset);
         }
-        Policy managePermission = policyStore.findByName(server, MANAGE_PERMISSION_USERS);
+        Policy managePermission = policyStore.findByName(MANAGE_PERMISSION_USERS, server.getId());
         if (managePermission == null) {
             Helper.addEmptyScopePermission(authz, server, MANAGE_PERMISSION_USERS, usersResource, manageScope);
         }
-        Policy viewPermission = policyStore.findByName(server, VIEW_PERMISSION_USERS);
+        Policy viewPermission = policyStore.findByName(VIEW_PERMISSION_USERS, server.getId());
         if (viewPermission == null) {
             Helper.addEmptyScopePermission(authz, server, VIEW_PERMISSION_USERS, usersResource, viewScope);
         }
-        Policy mapRolesPermission = policyStore.findByName(server, MAP_ROLES_PERMISSION_USERS);
+        Policy mapRolesPermission = policyStore.findByName(MAP_ROLES_PERMISSION_USERS, server.getId());
         if (mapRolesPermission == null) {
             Helper.addEmptyScopePermission(authz, server, MAP_ROLES_PERMISSION_USERS, usersResource, mapRolesScope);
         }
-        Policy membershipPermission = policyStore.findByName(server, MANAGE_GROUP_MEMBERSHIP_PERMISSION_USERS);
+        Policy membershipPermission = policyStore.findByName(MANAGE_GROUP_MEMBERSHIP_PERMISSION_USERS, server.getId());
         if (membershipPermission == null) {
             Helper.addEmptyScopePermission(authz, server, MANAGE_GROUP_MEMBERSHIP_PERMISSION_USERS, usersResource, manageGroupMembershipScope);
         }
-        Policy impersonatePermission = policyStore.findByName(server, ADMIN_IMPERSONATING_PERMISSION);
+        Policy impersonatePermission = policyStore.findByName(ADMIN_IMPERSONATING_PERMISSION, server.getId());
         if (impersonatePermission == null) {
             Helper.addEmptyScopePermission(authz, server, ADMIN_IMPERSONATING_PERMISSION, usersResource, impersonateScope);
         }
-        impersonatePermission = policyStore.findByName(server, USER_IMPERSONATED_PERMISSION);
+        impersonatePermission = policyStore.findByName(USER_IMPERSONATED_PERMISSION, server.getId());
         if (impersonatePermission == null) {
             Helper.addEmptyScopePermission(authz, server, USER_IMPERSONATED_PERMISSION, usersResource, userImpersonatedScope);
         }
@@ -144,7 +138,6 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
 
     @Override
     public Map<String, String> getPermissions() {
-        if (authz == null) return null;
         initialize();
         Map<String, String> scopes = new LinkedHashMap<>();
         scopes.put(AdminPermissionManagement.VIEW_SCOPE, viewPermission().getId());
@@ -161,7 +154,7 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
         ResourceServer server = root.realmResourceServer();
         if (server == null) return false;
 
-        Resource resource =  resourceStore.findByName(server, USERS_RESOURCE);
+        Resource resource =  resourceStore.findByName(USERS_RESOURCE, server.getId());
         if (resource == null) return false;
 
         Policy policy = managePermission();
@@ -187,38 +180,38 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
         ResourceServer server = root.realmResourceServer();
         if (server == null) return null;
 
-        return  resourceStore.findByName(server, USERS_RESOURCE);
+        return  resourceStore.findByName(USERS_RESOURCE, server.getId());
     }
 
     @Override
     public Policy managePermission() {
-        return policyStore.findByName(root.realmResourceServer(), MANAGE_PERMISSION_USERS);
+        return policyStore.findByName(MANAGE_PERMISSION_USERS, root.realmResourceServer().getId());
     }
 
     @Override
     public Policy viewPermission() {
-        return policyStore.findByName(root.realmResourceServer(), VIEW_PERMISSION_USERS);
+        return policyStore.findByName(VIEW_PERMISSION_USERS, root.realmResourceServer().getId());
     }
 
     @Override
     public Policy manageGroupMembershipPermission() {
-        return policyStore.findByName(root.realmResourceServer(), MANAGE_GROUP_MEMBERSHIP_PERMISSION_USERS);
+        return policyStore.findByName(MANAGE_GROUP_MEMBERSHIP_PERMISSION_USERS, root.realmResourceServer().getId());
     }
 
     @Override
     public Policy mapRolesPermission() {
-        return policyStore.findByName(root.realmResourceServer(), MAP_ROLES_PERMISSION_USERS);
+        return policyStore.findByName(MAP_ROLES_PERMISSION_USERS, root.realmResourceServer().getId());
     }
 
 
     @Override
     public Policy adminImpersonatingPermission() {
-        return policyStore.findByName(root.realmResourceServer(), ADMIN_IMPERSONATING_PERMISSION);
+        return policyStore.findByName(ADMIN_IMPERSONATING_PERMISSION, root.realmResourceServer().getId());
     }
 
     @Override
     public Policy userImpersonatedPermission() {
-        return policyStore.findByName(root.realmResourceServer(), USER_IMPERSONATED_PERMISSION);
+        return policyStore.findByName(USER_IMPERSONATED_PERMISSION, root.realmResourceServer().getId());
     }
 
     /**
@@ -358,33 +351,29 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
     }
 
     @Override
-    public boolean canImpersonate(UserModel user, ClientModel requester) {
+    public boolean canImpersonate(UserModel user) {
         if (!canImpersonate()) {
             return false;
         }
 
-        return isImpersonatable(user, requester);
-    }
-
-    private boolean canImpersonate(UserModel user) {
-        return canImpersonate(user, null);
+        return isImpersonatable(user);
     }
 
     @Override
-    public boolean isImpersonatable(UserModel user, ClientModel requester) {
+    public boolean isImpersonatable(UserModel user) {
         ResourceServer server = root.realmResourceServer();
 
         if (server == null) {
             return true;
         }
 
-        Resource resource =  resourceStore.findByName(server, USERS_RESOURCE);
+        Resource resource =  resourceStore.findByName(USERS_RESOURCE, server.getId());
 
         if (resource == null) {
             return true;
         }
 
-        Policy policy = authz.getStoreFactory().getPolicyStore().findByName(server, USER_IMPERSONATED_PERMISSION);
+        Policy policy = authz.getStoreFactory().getPolicyStore().findByName(USER_IMPERSONATED_PERMISSION, server.getId());
 
         if (policy == null) {
             return true;
@@ -396,20 +385,7 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
             return true;
         }
 
-        Map<String, List<String>> additionalClaims = Collections.emptyMap();
-
-        if (requester != null) {
-            // make sure the requesting client id is available from the context as we are using a user identity that does not rely on token claims
-            additionalClaims = new HashMap<>();
-            additionalClaims.put("kc.client.id", Arrays.asList(requester.getClientId()));
-        }
-
-        return hasPermission(new DefaultEvaluationContext(new UserModelIdentity(root.realm, user), additionalClaims, session), USER_IMPERSONATED_SCOPE);
-    }
-
-    @Override
-    public boolean isImpersonatable(UserModel user) {
-        return isImpersonatable(user, null);
+        return hasPermission(new DefaultEvaluationContext(new UserModelIdentity(root.realm, user), session), USER_IMPERSONATED_SCOPE);
     }
 
     @Override
@@ -499,7 +475,7 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
             return false;
         }
 
-        Resource resource =  resourceStore.findByName(server, USERS_RESOURCE);
+        Resource resource =  resourceStore.findByName(USERS_RESOURCE, server.getId());
         List<String> expectedScopes = Arrays.asList(scopes);
 
         if (resource == null) {
@@ -528,42 +504,39 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
     private void deletePermissionSetup() {
         ResourceServer server = root.realmResourceServer();
         if (server == null) return;
-
-        RealmModel realm = server.getRealm();
-
         Policy policy = managePermission();
         if (policy != null) {
-            policyStore.delete(realm, policy.getId());
+            policyStore.delete(policy.getId());
 
         }
         policy = viewPermission();
         if (policy != null) {
-            policyStore.delete(realm, policy.getId());
+            policyStore.delete(policy.getId());
 
         }
         policy = mapRolesPermission();
         if (policy != null) {
-            policyStore.delete(realm, policy.getId());
+            policyStore.delete(policy.getId());
 
         }
         policy = manageGroupMembershipPermission();
         if (policy != null) {
-            policyStore.delete(realm, policy.getId());
+            policyStore.delete(policy.getId());
 
         }
         policy = adminImpersonatingPermission();
         if (policy != null) {
-            policyStore.delete(realm, policy.getId());
+            policyStore.delete(policy.getId());
 
         }
         policy = userImpersonatedPermission();
         if (policy != null) {
-            policyStore.delete(realm, policy.getId());
+            policyStore.delete(policy.getId());
 
         }
-        Resource usersResource = resourceStore.findByName(server, USERS_RESOURCE);
+        Resource usersResource = resourceStore.findByName(USERS_RESOURCE, server.getId());
         if (usersResource != null) {
-            resourceStore.delete(realm, usersResource.getId());
+            resourceStore.delete(usersResource.getId());
         }
     }
 
@@ -587,12 +560,10 @@ class UserPermissions implements UserPermissionEvaluator, UserPermissionManageme
     }
 
     private boolean canManageByGroup(UserModel user) {
-        if (authz == null) return false;
         return evaluateHierarchy(user, (group) -> root.groups().canManageMembers(group));
 
     }
     private boolean canViewByGroup(UserModel user) {
-        if (authz == null) return false;
         return evaluateHierarchy(user, (group) -> root.groups().getGroupsWithViewPermission(group));
     }
 

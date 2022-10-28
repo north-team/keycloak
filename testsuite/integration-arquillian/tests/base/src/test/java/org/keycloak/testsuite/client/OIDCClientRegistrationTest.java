@@ -28,11 +28,9 @@ import org.keycloak.client.registration.Auth;
 import org.keycloak.client.registration.ClientRegistrationException;
 import org.keycloak.client.registration.HttpErrorException;
 import org.keycloak.common.util.CollectionUtil;
-import org.keycloak.crypto.Algorithm;
 import org.keycloak.events.Errors;
 import org.keycloak.jose.jwe.JWEConstants;
-import org.keycloak.models.CibaConfig;
-import org.keycloak.models.Constants;
+import org.keycloak.jose.jws.Algorithm;
 import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.utils.OIDCResponseType;
@@ -45,7 +43,6 @@ import org.keycloak.representations.oidc.OIDCClientRepresentation;
 import org.keycloak.testsuite.Assert;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.util.KeycloakModelUtils;
-import org.keycloak.util.JsonSerialization;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -64,7 +61,6 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
 
     private static final String PRIVATE_KEY = "MIICXAIBAAKBgQCrVrCuTtArbgaZzL1hvh0xtL5mc7o0NqPVnYXkLvgcwiC3BjLGw1tGEGoJaXDuSaRllobm53JBhjx33UNv+5z/UMG4kytBWxheNVKnL6GgqlNabMaFfPLPCF8kAgKnsi79NMo+n6KnSY8YeUmec/p2vjO2NjsSAVcWEQMVhJ31LwIDAQABAoGAfmO8gVhyBxdqlxmIuglbz8bcjQbhXJLR2EoS8ngTXmN1bo2L90M0mUKSdc7qF10LgETBzqL8jYlQIbt+e6TH8fcEpKCjUlyq0Mf/vVbfZSNaVycY13nTzo27iPyWQHK5NLuJzn1xvxxrUeXI6A2WFpGEBLbHjwpx5WQG9A+2scECQQDvdn9NE75HPTVPxBqsEd2z10TKkl9CZxu10Qby3iQQmWLEJ9LNmy3acvKrE3gMiYNWb6xHPKiIqOR1as7L24aTAkEAtyvQOlCvr5kAjVqrEKXalj0Tzewjweuxc0pskvArTI2Oo070h65GpoIKLc9jf+UA69cRtquwP93aZKtW06U8dQJAF2Y44ks/mK5+eyDqik3koCI08qaC8HYq2wVl7G2QkJ6sbAaILtcvD92ToOvyGyeE0flvmDZxMYlvaZnaQ0lcSQJBAKZU6umJi3/xeEbkJqMfeLclD27XGEFoPeNrmdx0q10Azp4NfJAY+Z8KRyQCR2BEG+oNitBOZ+YXF9KCpH3cdmECQHEigJhYg+ykOvr1aiZUMFT72HU0jnmQe2FVekuG+LJUt2Tm7GtMjTFoGpf0JwrVuZN39fOYAlo+nTixgeW7X8Y=";
     private static final String PUBLIC_KEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCrVrCuTtArbgaZzL1hvh0xtL5mc7o0NqPVnYXkLvgcwiC3BjLGw1tGEGoJaXDuSaRllobm53JBhjx33UNv+5z/UMG4kytBWxheNVKnL6GgqlNabMaFfPLPCF8kAgKnsi79NMo+n6KnSY8YeUmec/p2vjO2NjsSAVcWEQMVhJ31LwIDAQAB";
-    private static final String ERR_MSG_CLIENT_REG_FAIL = "Failed to send request";
 
     @Override
     public void addTestRealms(List<RealmRepresentation> testRealms) {
@@ -92,8 +88,6 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
         client.setClientName("RegistrationAccessTokenTest");
         client.setClientUri("http://root");
         client.setRedirectUris(Collections.singletonList("http://redirect"));
-        client.setFrontChannelLogoutUri("http://frontchannel");
-        client.setFrontchannelLogoutSessionRequired(true);
         return client;
     }
 
@@ -162,8 +156,6 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
         assertEquals(Arrays.asList(OAuth2Constants.AUTHORIZATION_CODE, OAuth2Constants.REFRESH_TOKEN), response.getGrantTypes());
         assertEquals(OIDCLoginProtocol.CLIENT_SECRET_BASIC, response.getTokenEndpointAuthMethod());
         Assert.assertNull(response.getUserinfoSignedResponseAlg());
-        assertEquals("http://frontchannel", response.getFrontChannelLogoutUri());
-        assertTrue(response.getFrontchannelLogoutSessionRequired());
     }
 
     @Test
@@ -223,12 +215,12 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
         OIDCClientRepresentation response = null;
         try {
             clientRep = createRep();
-            clientRep.setUserinfoSignedResponseAlg(Algorithm.ES256);
-            clientRep.setRequestObjectSigningAlg(Algorithm.ES256);
+            clientRep.setUserinfoSignedResponseAlg(Algorithm.ES256.toString());
+            clientRep.setRequestObjectSigningAlg(Algorithm.ES256.toString());
 
             response = reg.oidc().create(clientRep);
-            Assert.assertEquals(Algorithm.ES256, response.getUserinfoSignedResponseAlg());
-            Assert.assertEquals(Algorithm.ES256, response.getRequestObjectSigningAlg());
+            Assert.assertEquals(Algorithm.ES256.toString(), response.getUserinfoSignedResponseAlg());
+            Assert.assertEquals(Algorithm.ES256.toString(), response.getRequestObjectSigningAlg());
             Assert.assertNotNull(response.getClientSecret());
 
             // Test Keycloak representation
@@ -238,11 +230,11 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
             Assert.assertEquals(config.getRequestObjectSignatureAlg(), Algorithm.ES256);
 
             // update (ES256 to PS256)
-            clientRep.setUserinfoSignedResponseAlg(Algorithm.PS256);
-            clientRep.setRequestObjectSigningAlg(Algorithm.PS256);
+            clientRep.setUserinfoSignedResponseAlg(Algorithm.PS256.toString());
+            clientRep.setRequestObjectSigningAlg(Algorithm.PS256.toString());
             response = reg.oidc().create(clientRep);
-            Assert.assertEquals(Algorithm.PS256, response.getUserinfoSignedResponseAlg());
-            Assert.assertEquals(Algorithm.PS256, response.getRequestObjectSigningAlg());
+            Assert.assertEquals(Algorithm.PS256.toString(), response.getUserinfoSignedResponseAlg());
+            Assert.assertEquals(Algorithm.PS256.toString(), response.getRequestObjectSigningAlg());
 
             // keycloak representation
             kcClient = getClient(response.getClientId());
@@ -251,8 +243,8 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
             Assert.assertEquals(config.getRequestObjectSignatureAlg(), Algorithm.PS256);
         } finally {
             // back to RS256 for other tests
-            clientRep.setUserinfoSignedResponseAlg(Algorithm.RS256);
-            clientRep.setRequestObjectSigningAlg(Algorithm.RS256);
+            clientRep.setUserinfoSignedResponseAlg(Algorithm.RS256.toString());
+            clientRep.setRequestObjectSigningAlg(Algorithm.RS256.toString());
             response = reg.oidc().create(clientRep);
         }
     }
@@ -261,65 +253,21 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
     public void createClientImplicitFlow() throws ClientRegistrationException {
         OIDCClientRepresentation clientRep = createRep();
 
+        // create implicitFlow client and assert it's public client
         clientRep.setResponseTypes(Arrays.asList("id_token token"));
         OIDCClientRepresentation response = reg.oidc().create(clientRep);
 
         String clientId = response.getClientId();
         ClientRepresentation kcClientRep = getKeycloakClient(clientId);
-        Assert.assertFalse(kcClientRep.isPublicClient());
-        Assert.assertFalse(kcClientRep.isBearerOnly());
-        Assert.assertNotNull(kcClientRep.getSecret());
-    }
-
-    @Test
-    public void createPublicClient() throws ClientRegistrationException {
-        OIDCClientRepresentation clientRep = createRep();
-
-        clientRep.setTokenEndpointAuthMethod("none");
-        OIDCClientRepresentation response = reg.oidc().create(clientRep);
-        Assert.assertEquals("none", response.getTokenEndpointAuthMethod());
-
-        String clientId = response.getClientId();
-        ClientRepresentation kcClientRep = getKeycloakClient(clientId);
         Assert.assertTrue(kcClientRep.isPublicClient());
-        Assert.assertNull(kcClientRep.getSecret());
-    }
 
-    @Test
-    public void testClientSecretsWithAuthMethod() throws ClientRegistrationException {
-        OIDCClientRepresentation clientRep = createRep();
-        clientRep.setGrantTypes(Collections.singletonList(OAuth2Constants.CLIENT_CREDENTIALS));
-        clientRep.setTokenEndpointAuthMethod(OIDCLoginProtocol.CLIENT_SECRET_JWT);
-
-        OIDCClientRepresentation response = reg.oidc().create(clientRep);
-        Assert.assertEquals("client_secret_jwt", response.getTokenEndpointAuthMethod());
-        Assert.assertNotNull(response.getClientSecret());
-        Assert.assertNotNull(response.getClientSecretExpiresAt());
-
-        ClientRepresentation kcClientRep = getKeycloakClient(response.getClientId());
-        Assert.assertFalse(kcClientRep.isPublicClient());
-        Assert.assertNotNull(kcClientRep.getSecret());
-
-        // Updating
+        // Update client to hybrid and check it's not public client anymore
         reg.auth(Auth.token(response));
-        response.setTokenEndpointAuthMethod(OIDCLoginProtocol.TLS_CLIENT_AUTH);
-        OIDCClientRepresentation updated = reg.oidc().update(response);
-        Assert.assertEquals("tls_client_auth", updated.getTokenEndpointAuthMethod());
-        Assert.assertNull(updated.getClientSecret());
-        Assert.assertNull(updated.getClientSecretExpiresAt());
-    }
+        response.setResponseTypes(Arrays.asList("id_token token", "code id_token", "code"));
+        reg.oidc().update(response);
 
-    @Test
-    public void createClientFrontchannelLogoutSettings() throws ClientRegistrationException {
-        // When frontchannelLogutSessionRequired is not set, it should be false by default per OIDC Client registration specification
-        OIDCClientRepresentation clientRep = createRep();
-        clientRep.setFrontchannelLogoutSessionRequired(null);
-        OIDCClientRepresentation response = reg.oidc().create(clientRep);
-        Assert.assertEquals(false, response.getFrontchannelLogoutSessionRequired());
-
-        String clientId = response.getClientId();
-        ClientRepresentation kcClientRep = getKeycloakClient(clientId);
-        Assert.assertFalse(OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClientRep).isFrontChannelLogoutSessionRequired());
+        kcClientRep = getKeycloakClient(clientId);
+        Assert.assertFalse(kcClientRep.isPublicClient());
     }
 
     // KEYCLOAK-6771 Certificate Bound Token
@@ -360,45 +308,6 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
         config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
         assertTrue(!config.isUseMtlsHokToken());
 
-    }
-
-    @Test
-    public void testUserInfoEncryptedResponse() throws Exception {
-        OIDCClientRepresentation response = null;
-        OIDCClientRepresentation updated = null;
-        try {
-            // create (no specification)
-            OIDCClientRepresentation clientRep = createRep();
-
-            response = reg.oidc().create(clientRep);
-
-            // Test Keycloak representation
-            ClientRepresentation kcClient = getClient(response.getClientId());
-            OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-            Assert.assertNull(config.getUserInfoEncryptedResponseAlg());
-            Assert.assertNull(config.getUserInfoEncryptedResponseEnc());
-
-            // update (alg RSA1_5, enc A128CBC-HS256)
-            reg.auth(Auth.token(response));
-            response.setUserinfoEncryptedResponseAlg(JWEConstants.RSA1_5);
-            response.setUserinfoEncryptedResponseEnc(JWEConstants.A128CBC_HS256);
-            updated = reg.oidc().update(response);
-            Assert.assertEquals(JWEConstants.RSA1_5, updated.getUserinfoEncryptedResponseAlg());
-            Assert.assertEquals(JWEConstants.A128CBC_HS256, updated.getUserinfoEncryptedResponseEnc());
-
-            // Test Keycloak representation
-            kcClient = getClient(updated.getClientId());
-            config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-            Assert.assertEquals(JWEConstants.RSA1_5, config.getUserInfoEncryptedResponseAlg());
-            Assert.assertEquals(JWEConstants.A128CBC_HS256, config.getUserInfoEncryptedResponseEnc());
-
-        } finally {
-            // revert
-            reg.auth(Auth.token(updated));
-            updated.setUserinfoEncryptedResponseAlg(null);
-            updated.setUserinfoEncryptedResponseEnc(null);
-            reg.oidc().update(updated);
-        }
     }
 
     @Test
@@ -448,14 +357,14 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
         OIDCClientRepresentation updated = null;
         try {
             OIDCClientRepresentation clientRep = createRep();
-            clientRep.setTokenEndpointAuthSigningAlg(Algorithm.ES256);
+            clientRep.setTokenEndpointAuthSigningAlg(Algorithm.ES256.toString());
 
             response = reg.oidc().create(clientRep);
-            Assert.assertEquals(Algorithm.ES256, response.getTokenEndpointAuthSigningAlg());
+            Assert.assertEquals(Algorithm.ES256.toString(), response.getTokenEndpointAuthSigningAlg());
 
             ClientRepresentation kcClient = getClient(response.getClientId());
             OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-            Assert.assertEquals(Algorithm.ES256, config.getTokenEndpointAuthSigningAlg());
+            Assert.assertEquals(Algorithm.ES256.toString(), config.getTokenEndpointAuthSigningAlg());
 
             reg.auth(Auth.token(response));
             response.setTokenEndpointAuthSigningAlg(null);
@@ -470,119 +379,6 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
             reg.auth(Auth.token(updated));
             updated.setTokenEndpointAuthSigningAlg(null);
             reg.oidc().update(updated);
-        }
-    }
-
-    @Test
-    public void testAuthorizationResponseSigningAlg() throws Exception {
-        OIDCClientRepresentation response = null;
-        OIDCClientRepresentation updated = null;
-        try {
-            OIDCClientRepresentation clientRep = createRep();
-            clientRep.setAuthorizationSignedResponseAlg(Algorithm.PS256);
-
-            response = reg.oidc().create(clientRep);
-            Assert.assertEquals(Algorithm.PS256, response.getAuthorizationSignedResponseAlg());
-
-            ClientRepresentation kcClient = getClient(response.getClientId());
-            OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-            Assert.assertEquals(Algorithm.PS256, config.getAuthorizationSignedResponseAlg());
-
-            reg.auth(Auth.token(response));
-            response.setAuthorizationSignedResponseAlg(null);
-            updated = reg.oidc().update(response);
-            Assert.assertEquals(null, response.getAuthorizationSignedResponseAlg());
-
-            kcClient = getClient(updated.getClientId());
-            config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-            Assert.assertEquals(null, config.getAuthorizationSignedResponseAlg());
-        } finally {
-            // revert
-            reg.auth(Auth.token(updated));
-            updated.setAuthorizationSignedResponseAlg(null);
-            reg.oidc().update(updated);
-        }
-    }
-
-    @Test
-    public void testAuthorizationEncryptedResponse() throws Exception {
-        OIDCClientRepresentation response = null;
-        OIDCClientRepresentation updated = null;
-        try {
-            OIDCClientRepresentation clientRep = createRep();
-            clientRep.setAuthorizationEncryptedResponseAlg(JWEConstants.RSA1_5);
-            clientRep.setAuthorizationEncryptedResponseEnc(JWEConstants.A128CBC_HS256);
-
-            // create
-            response = reg.oidc().create(clientRep);
-            Assert.assertEquals(JWEConstants.RSA1_5, response.getAuthorizationEncryptedResponseAlg());
-            Assert.assertEquals(JWEConstants.A128CBC_HS256, response.getAuthorizationEncryptedResponseEnc());
-
-            // Test Keycloak representation
-            ClientRepresentation kcClient = getClient(response.getClientId());
-            OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-            Assert.assertEquals(JWEConstants.RSA1_5, config.getAuthorizationEncryptedResponseAlg());
-            Assert.assertEquals(JWEConstants.A128CBC_HS256, config.getAuthorizationEncryptedResponseEnc());
-
-            // update
-            reg.auth(Auth.token(response));
-            response.setAuthorizationEncryptedResponseAlg(null);
-            response.setAuthorizationEncryptedResponseEnc(null);
-            updated = reg.oidc().update(response);
-            Assert.assertNull(updated.getAuthorizationEncryptedResponseAlg());
-            Assert.assertNull(updated.getAuthorizationEncryptedResponseEnc());
-
-            // Test Keycloak representation
-            kcClient = getClient(updated.getClientId());
-            config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-            Assert.assertNull(config.getAuthorizationEncryptedResponseAlg());
-            Assert.assertNull(config.getAuthorizationEncryptedResponseEnc());
-
-        } finally {
-            // revert
-            reg.auth(Auth.token(updated));
-            updated.setAuthorizationEncryptedResponseAlg(null);
-            updated.setAuthorizationEncryptedResponseEnc(null);
-            reg.oidc().update(updated);
-        }
-    }
-
-    @Test
-    public void testCIBASettings() throws Exception {
-        OIDCClientRepresentation clientRep = null;
-        OIDCClientRepresentation response = null;
-        clientRep = createRep();
-        clientRep.setBackchannelTokenDeliveryMode("poll");
-
-        response = reg.oidc().create(clientRep);
-        Assert.assertEquals("poll", response.getBackchannelTokenDeliveryMode());
-
-        // Test Keycloak representation
-        ClientRepresentation kcClient = getClient(response.getClientId());
-        Assert.assertEquals("poll", kcClient.getAttributes().get(CibaConfig.CIBA_BACKCHANNEL_TOKEN_DELIVERY_MODE_PER_CLIENT));
-
-        // Create with ping mode (failes due missing clientNotificationEndpoint)
-        clientRep.setBackchannelTokenDeliveryMode("ping");
-        try {
-            reg.oidc().create(clientRep);
-            fail();
-        } catch (ClientRegistrationException e) {
-            assertEquals(ERR_MSG_CLIENT_REG_FAIL, e.getMessage());
-        }
-
-        // Create with ping mode (success)
-        clientRep.setBackchannelClientNotificationEndpoint("https://foo/bar");
-        response = reg.oidc().create(clientRep);
-        Assert.assertEquals("ping", response.getBackchannelTokenDeliveryMode());
-        Assert.assertEquals("https://foo/bar", response.getBackchannelClientNotificationEndpoint());
-
-        // Create with push mode (fails)
-        clientRep.setBackchannelTokenDeliveryMode("push");
-        try {
-            reg.oidc().create(clientRep);
-            fail();
-        } catch (ClientRegistrationException e) {
-            assertEquals(ERR_MSG_CLIENT_REG_FAIL, e.getMessage());
         }
     }
 
@@ -613,30 +409,21 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
     }
 
     @Test
-    public void testOIDCEndpointGetWithSamlClient() throws Exception {
-        OIDCClientRepresentation response = create();
-        reg.auth(Auth.token(response));
-        assertNotNull(reg.oidc().get(response.getClientId()));
+    public void testOIDCEndpointGetWithSamlClient() {
         ClientsResource clientsResource = adminClient.realm(TEST).clients();
-        ClientRepresentation client = clientsResource.findByClientId(response.getClientId()).get(0);
+        ClientRepresentation samlClient = clientsResource.findByClientId("saml-client").get(0);
+
+        reg.auth(Auth.client("saml-client", "secret"));
 
         // change client to saml
-        client.setProtocol("saml");
-        clientsResource.get(client.getId()).update(client);
+        samlClient.setProtocol("saml");
+        clientsResource.get(samlClient.getId()).update(samlClient);
 
-        assertGetFail(client.getClientId(), 400, Errors.INVALID_CLIENT);
-    }
+        assertGetFail(samlClient.getClientId(), 400, Errors.INVALID_CLIENT);
 
-    @Test
-    public void testOIDCEndpointGetWithToken() throws Exception {
-        OIDCClientRepresentation response = create();
-        reg.auth(Auth.token(response));
-        assertNotNull(reg.oidc().get(response.getClientId()));
-    }
-
-    @Test
-    public void testOIDCEndpointGetWithoutToken() throws Exception {
-        assertGetFail(create().getClientId(), 401, null);
+        // revert client
+        samlClient.setProtocol("openid-connect");
+        clientsResource.get(samlClient.getId()).update(samlClient);
     }
 
     @Test
@@ -658,7 +445,6 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
              OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
              Assert.assertEquals(X509ClientAuthenticator.PROVIDER_ID, kcClient.getClientAuthenticatorType());
              Assert.assertEquals("Ein", config.getTlsClientAuthSubjectDn());
-             Assert.assertFalse(config.getAllowRegexPatternComparison());
 
              // update
              reg.auth(Auth.token(response));
@@ -724,9 +510,7 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
     @Test
     public void testClientWithoutScope() throws ClientRegistrationException {
         Set<String> realmOptionalClientScopes = new HashSet<>(adminClient.realm(REALM_NAME).getDefaultOptionalClientScopes()
-                .stream()
-                .filter(scope -> Objects.equals(scope.getProtocol(), OIDCLoginProtocol.LOGIN_PROTOCOL))
-                .map(i->i.getName()).collect(Collectors.toList()));
+                .stream().map(i->i.getName()).collect(Collectors.toList()));
 
         OIDCClientRepresentation clientRep = null;
         OIDCClientRepresentation response = null;
@@ -741,9 +525,7 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
         ClientRepresentation rep = clientResource.toRepresentation();
 
         Set<String> realmDefaultClientScopes = new HashSet<>(adminClient.realm(REALM_NAME).getDefaultDefaultClientScopes()
-                .stream()
-                .filter(scope -> Objects.equals(scope.getProtocol(), OIDCLoginProtocol.LOGIN_PROTOCOL))
-                .map(i->i.getName()).collect(Collectors.toList()));
+                .stream().map(i->i.getName()).collect(Collectors.toList()));
 
         Set<String> registeredDefaultClientScopes = new HashSet<>(rep.getDefaultClientScopes());
         assertTrue(realmDefaultClientScopes.equals(new HashSet<>(registeredDefaultClientScopes)));
@@ -765,107 +547,5 @@ public class OIDCClientRegistrationTest extends AbstractClientRegistrationTest {
         ClientRepresentation kcClient = getClient(response.getClientId());
         OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
         Assert.assertNames(config.getRequestUris(), "http://host/foo", "https://host2/bar");
-    }
-
-    @Test
-    public void testClientWithoutRefreshToken() throws Exception {
-        OIDCClientRepresentation clientRep = null;
-        OIDCClientRepresentation response = null;
-
-        clientRep = createRep();
-        clientRep.setGrantTypes(Arrays.asList(OAuth2Constants.AUTHORIZATION_CODE));
-
-        response = reg.oidc().create(clientRep);
-
-        // Test Keycloak representation
-        ClientRepresentation kcClient = getClient(response.getClientId());
-        OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-        Assert.assertFalse(config.isUseRefreshToken());
-    }
-
-    @Test
-    public void testClientWithRefreshToken() throws Exception {
-        OIDCClientRepresentation clientRep = null;
-        OIDCClientRepresentation response = null;
-
-        clientRep = createRep();
-        clientRep.setGrantTypes(Arrays.asList(OAuth2Constants.AUTHORIZATION_CODE, OAuth2Constants.REFRESH_TOKEN));
-
-        response = reg.oidc().create(clientRep);
-
-        // Test Keycloak representation
-        ClientRepresentation kcClient = getClient(response.getClientId());
-        OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-        Assert.assertTrue(config.isUseRefreshToken());
-    }
-
-    @Test
-    public void testClientWithoutGrantTypes() throws Exception {
-        OIDCClientRepresentation response = create();
-
-        assertTrue(CollectionUtil.collectionEquals(
-            Arrays.asList(OAuth2Constants.AUTHORIZATION_CODE, OAuth2Constants.REFRESH_TOKEN), response.getGrantTypes()));
-
-        // Test Keycloak representation
-        ClientRepresentation kcClient = getClient(response.getClientId());
-        OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-        Assert.assertTrue(config.isUseRefreshToken());
-    }
-
-    @Test
-    public void testDefaultAcrValues() throws Exception {
-        // Set realm acr-to-loa mapping
-        RealmRepresentation realmRep = adminClient.realm("test").toRepresentation();
-        Map<String, Integer> acrLoaMap = new HashMap<>();
-        acrLoaMap.put("copper", 0);
-        acrLoaMap.put("silver", 1);
-        acrLoaMap.put("gold", 2);
-        realmRep.getAttributes().put(Constants.ACR_LOA_MAP, JsonSerialization.writeValueAsString(acrLoaMap));
-        adminClient.realm("test").update(realmRep);
-
-        OIDCClientRepresentation clientRep = createRep();
-        clientRep.setDefaultAcrValues(Arrays.asList("silver", "foo"));
-        try {
-            OIDCClientRepresentation response = reg.oidc().create(clientRep);
-            fail("Expected 400");
-        } catch (ClientRegistrationException e) {
-            assertEquals(400, ((HttpErrorException) e.getCause()).getStatusLine().getStatusCode());
-        }
-
-        clientRep.setDefaultAcrValues(Arrays.asList("silver", "gold"));
-        OIDCClientRepresentation response = reg.oidc().create(clientRep);
-        Assert.assertNames(response.getDefaultAcrValues(), "silver", "gold");
-
-        // Test Keycloak representation
-        ClientRepresentation kcClient = getClient(response.getClientId());
-        OIDCAdvancedConfigWrapper config = OIDCAdvancedConfigWrapper.fromClientRepresentation(kcClient);
-        Assert.assertNames(config.getAttributeMultivalued(Constants.DEFAULT_ACR_VALUES), "silver", "gold");
-
-        // Revert realm acr-to-loa mappings
-        realmRep.getAttributes().remove(Constants.ACR_LOA_MAP);
-        adminClient.realm("test").update(realmRep);
-    }
-
-    @Test
-    public void testPostLogoutRedirectUri() throws Exception {
-        OIDCClientRepresentation clientRep = createRep();
-        clientRep.setPostLogoutRedirectUris(Collections.singletonList("http://redirect/logout"));
-        OIDCClientRepresentation response = reg.oidc().create(clientRep);
-        assertEquals("http://redirect/logout", response.getPostLogoutRedirectUris().get(0));
-    }
-
-    @Test
-    public void testPostLogoutRedirectUriPlus() throws Exception {
-        OIDCClientRepresentation clientRep = createRep();
-        clientRep.setPostLogoutRedirectUris(Collections.singletonList("+"));
-        OIDCClientRepresentation response = reg.oidc().create(clientRep);
-        assertEquals("http://redirect", response.getPostLogoutRedirectUris().get(0));
-    }
-
-    @Test
-    public void testPostLogoutRedirectUriNull() throws Exception {
-        OIDCClientRepresentation clientRep = createRep();
-        OIDCClientRepresentation response = reg.oidc().create(clientRep);
-        assertNull(response.getPostLogoutRedirectUris());
     }
 }

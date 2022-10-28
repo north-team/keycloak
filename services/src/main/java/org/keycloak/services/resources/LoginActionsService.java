@@ -29,7 +29,7 @@ import org.keycloak.authentication.RequiredActionFactory;
 import org.keycloak.authentication.RequiredActionProvider;
 import org.keycloak.authentication.actiontoken.ActionTokenContext;
 import org.keycloak.authentication.actiontoken.ActionTokenHandler;
-import org.keycloak.models.DefaultActionTokenKey;
+import org.keycloak.authentication.actiontoken.DefaultActionTokenKey;
 import org.keycloak.authentication.actiontoken.ExplainedTokenVerificationException;
 import org.keycloak.authentication.actiontoken.resetcred.ResetCredentialsActionTokenHandler;
 import org.keycloak.authentication.authenticators.broker.AbstractIdpAuthenticator;
@@ -47,7 +47,9 @@ import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
 import org.keycloak.exceptions.TokenNotActiveException;
-import org.keycloak.models.SingleUseObjectKeyModel;
+import org.keycloak.locale.LocaleSelectorProvider;
+import org.keycloak.locale.LocaleUpdaterProvider;
+import org.keycloak.models.ActionTokenKeyModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientScopeModel;
@@ -57,7 +59,6 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserConsentModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.AuthenticationFlowResolver;
 import org.keycloak.models.utils.FormMessage;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -80,7 +81,6 @@ import org.keycloak.services.messages.Messages;
 import org.keycloak.services.util.AuthenticationFlowURLHelper;
 import org.keycloak.services.util.BrowserHistoryHelper;
 import org.keycloak.services.util.CacheControlUtil;
-import org.keycloak.services.util.LocaleUtil;
 import org.keycloak.sessions.AuthenticationSessionCompoundId;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
@@ -230,14 +230,6 @@ public class LoginActionsService {
             flowPath = AUTHENTICATE_PATH;
         }
 
-        // See if we already have userSession attached to authentication session. This means restart of authentication session during re-authentication
-        // We logout userSession in this case
-        UserSessionModel userSession = new AuthenticationSessionManager(session).getUserSession(authSession);
-        if (userSession != null) {
-            logger.debugf("Logout of user session %s when restarting flow during re-authentication", userSession.getId());
-            AuthenticationManager.backchannelLogout(session, userSession, false);
-        }
-
         AuthenticationProcessor.resetFlow(authSession, flowPath);
 
         URI redirectUri = getLastExecutionUrl(flowPath, null, authSession.getClient().getClientId(), tabId);
@@ -275,7 +267,15 @@ public class LoginActionsService {
     }
 
     protected void processLocaleParam(AuthenticationSessionModel authSession) {
-        LocaleUtil.processLocaleParam(session, realm, authSession);
+        if (authSession != null && realm.isInternationalizationEnabled()) {
+            String locale = session.getContext().getUri().getQueryParameters().getFirst(LocaleSelectorProvider.KC_LOCALE_PARAM);
+            if (locale != null) {
+                authSession.setAuthNote(LocaleSelectorProvider.USER_REQUEST_LOCALE, locale);
+
+                LocaleUpdaterProvider localeUpdater = session.getProvider(LocaleUpdaterProvider.class);
+                localeUpdater.updateLocaleCookie(locale);
+            }
+        }
     }
 
     protected Response processAuthentication(boolean action, String execution, AuthenticationSessionModel authSession, String errorMessage) {
@@ -458,7 +458,7 @@ public class LoginActionsService {
         return handleActionToken(key, execution, clientId, tabId);
     }
 
-    protected <T extends JsonWebToken & SingleUseObjectKeyModel> Response handleActionToken(String tokenString, String execution, String clientId, String tabId) {
+    protected <T extends JsonWebToken & ActionTokenKeyModel> Response handleActionToken(String tokenString, String execution, String clientId, String tabId) {
         T token;
         ActionTokenHandler<T> handler;
         ActionTokenContext<T> tokenContext;
@@ -845,9 +845,11 @@ public class LoginActionsService {
         return Response.status(302).location(redirect).build();
     }
 
+
     /**
      * OAuth grant page.  You should not invoked this directly!
      *
+     * @param formData
      * @return
      */
     @Path("consent")

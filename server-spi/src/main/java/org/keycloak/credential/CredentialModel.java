@@ -132,7 +132,7 @@ public class CredentialModel implements Serializable {
     // DEPRECATED - the methods below exists for the backwards compatibility
 
     /**
-     * @deprecated Recommended to use PasswordCredentialModel.getPasswordSecretData().getValue() or OTPCredentialModel.getOTPSecretData().getValue()
+     * @deprecated Recommended to use PasswordCredentialModel.getSecretData().getValue() or OTPCredentialModel.getSecretData().getValue()
      */
     @Deprecated
     @JsonIgnore
@@ -149,7 +149,7 @@ public class CredentialModel implements Serializable {
     }
 
     /**
-     * @deprecated Recommended to use OTPCredentialModel.getOTPCredentialData().getDevice()
+     * @deprecated Recommended to use OTPCredentialModel.getCredentialData().getDevice()
      */
     @Deprecated
     @JsonIgnore
@@ -166,7 +166,7 @@ public class CredentialModel implements Serializable {
     }
 
     /**
-     * @deprecated Recommended to use PasswordCredentialModel.getPasswordSecretData().getSalt()
+     * @deprecated Recommended to use PasswordCredentialModel.getSecretData().getSalt()
      */
     @Deprecated
     @JsonIgnore
@@ -189,7 +189,7 @@ public class CredentialModel implements Serializable {
     }
 
     /**
-     * @deprecated Recommended to use PasswordCredentialModel.getPasswordCredentialData().getHashIterations()
+     * @deprecated Recommended to use PasswordCredentialModel.getCredentialData().getHashIterations()
      */
     @Deprecated
     @JsonIgnore
@@ -206,7 +206,7 @@ public class CredentialModel implements Serializable {
     }
 
     /**
-     * @deprecated Recommended to use OTPCredentialModel.getOTPCredentialData().getCounter()
+     * @deprecated Recommended to use OTPCredentialModel.getCredentialData().getCounter()
      */
     @Deprecated
     @JsonIgnore
@@ -223,7 +223,7 @@ public class CredentialModel implements Serializable {
     }
 
     /**
-     * @deprecated Recommended to use PasswordCredentialModel.getPasswordCredentialData().getAlgorithm() or OTPCredentialModel.getOTPCredentialData().getAlgorithm()
+     * @deprecated Recommended to use PasswordCredentialModel.getCredentialData().getAlgorithm() or OTPCredentialModel.getCredentialData().getAlgorithm()
      */
     @Deprecated
     @JsonIgnore
@@ -240,7 +240,7 @@ public class CredentialModel implements Serializable {
     }
 
     /**
-     * @deprecated Recommended to use OTPCredentialModel.getOTPCredentialData().getDigits()
+     * @deprecated Recommended to use OTPCredentialModel.getCredentialData().getDigits()
      */
     @Deprecated
     @JsonIgnore
@@ -257,7 +257,7 @@ public class CredentialModel implements Serializable {
     }
 
     /**
-     * @deprecated Recommended to use OTPCredentialModel.getOTPCredentialData().getPeriod()
+     * @deprecated Recommended to use OTPCredentialModel.getCredentialData().getPeriod()
      */
     @Deprecated
     @JsonIgnore

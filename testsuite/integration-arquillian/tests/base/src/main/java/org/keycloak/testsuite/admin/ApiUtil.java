@@ -23,8 +23,7 @@ import org.keycloak.admin.client.resource.ClientScopeResource;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.RoleResource;
 import org.keycloak.admin.client.resource.UserResource;
-import org.keycloak.crypto.KeyStatus;
-import org.keycloak.crypto.KeyUse;
+import org.keycloak.crypto.Algorithm;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.ClientScopeRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
@@ -132,7 +131,7 @@ public class ApiUtil {
 
     public static UserRepresentation findUserByUsername(RealmResource realm, String username) {
         UserRepresentation user = null;
-        List<UserRepresentation> ur = realm.users().search(username, null, null, null, 0, -1);
+        List<UserRepresentation> ur = realm.users().search(username, null, null, null, 0, Integer.MAX_VALUE);
         if (ur.size() == 1) {
             user = ur.get(0);
         }
@@ -269,23 +268,15 @@ public class ApiUtil {
         return null;
     }
 
-    public static KeysMetadataRepresentation.KeyMetadataRepresentation findActiveSigningKey(RealmResource realm) {
+    public static KeysMetadataRepresentation.KeyMetadataRepresentation findActiveKey(RealmResource realm) {
         KeysMetadataRepresentation keyMetadata = realm.keys().getKeyMetadata();
+        String activeKid = keyMetadata.getActive().get(Algorithm.RS256);
         for (KeysMetadataRepresentation.KeyMetadataRepresentation rep : keyMetadata.getKeys()) {
-            if (rep.getPublicKey() != null && KeyStatus.valueOf(rep.getStatus()).isActive() && KeyUse.SIG.equals(rep.getUse())) {
+            if (rep.getKid().equals(activeKid)) {
                 return rep;
             }
         }
         return null;
     }
 
-    public static KeysMetadataRepresentation.KeyMetadataRepresentation findActiveSigningKey(RealmResource realm, String alg) {
-        KeysMetadataRepresentation keyMetadata = realm.keys().getKeyMetadata();
-        for (KeysMetadataRepresentation.KeyMetadataRepresentation rep : keyMetadata.getKeys()) {
-            if (rep.getPublicKey() != null && KeyStatus.valueOf(rep.getStatus()).isActive() && KeyUse.SIG.equals(rep.getUse()) && alg.equals(rep.getAlgorithm())) {
-                return rep;
-            }
-        }
-        return null;
-    }
 }

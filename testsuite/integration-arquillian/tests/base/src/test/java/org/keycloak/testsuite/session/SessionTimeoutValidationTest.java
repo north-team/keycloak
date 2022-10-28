@@ -29,8 +29,11 @@ import org.keycloak.models.UserSessionModel;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.ModelTest;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class SessionTimeoutValidationTest extends AbstractTestRealmKeycloakTest {
 
     @Override
@@ -43,6 +46,7 @@ public class SessionTimeoutValidationTest extends AbstractTestRealmKeycloakTest 
     public  void before() {
         testingClient.server().run( session -> {
             RealmModel realm = session.realms().getRealmByName("test");
+            realm = session.realms().getRealm("test");
             session.users().addUser(realm, "user1");
         });
     }
@@ -53,7 +57,7 @@ public class SessionTimeoutValidationTest extends AbstractTestRealmKeycloakTest 
         testingClient.server().run( session -> {
             RealmModel realm = session.realms().getRealmByName("test");
             session.sessions().removeUserSessions(realm);
-            UserModel user1 = session.users().getUserByUsername(realm, "user1");
+            UserModel user1 = session.users().getUserByUsername("user1", realm);
 
             UserManager um = new UserManager(session);
             if (user1 != null) {
@@ -74,7 +78,7 @@ public class SessionTimeoutValidationTest extends AbstractTestRealmKeycloakTest 
         UserSessionModel userSessionModel =
             session.sessions().createUserSession(
                                                  realm,
-                                                 session.users().getUserByUsername(realm, "user1"),
+                                                 session.users().getUserByUsername("user1", realm),
                                                  "user1", "127.0.0.1", "form", true, null, null
                                                  );
 

@@ -19,7 +19,6 @@ package org.keycloak.subsystem.adapter.extension;
 import org.jboss.as.controller.SimpleAttributeDefinition;
 import org.jboss.as.controller.SimpleAttributeDefinitionBuilder;
 import org.jboss.as.controller.operations.validation.IntRangeValidator;
-import org.jboss.as.controller.operations.validation.LongRangeValidator;
 import org.jboss.as.controller.operations.validation.StringLengthValidator;
 import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
@@ -81,24 +80,6 @@ public class SharedAttributeDefinitons {
                     .setXmlName("connection-pool-size")
                     .setAllowExpression(true)
                     .setValidator(new IntRangeValidator(0, true))
-                    .build();
-    protected static final SimpleAttributeDefinition SOCKET_TIMEOUT =
-            new SimpleAttributeDefinitionBuilder("socket-timeout-millis", ModelType.LONG, true)
-                    .setXmlName("socket-timeout-millis")
-                    .setAllowExpression(true)
-                    .setValidator(new LongRangeValidator(-1L, true))
-                    .build();
-    protected static final SimpleAttributeDefinition CONNECTION_TTL =
-            new SimpleAttributeDefinitionBuilder("connection-ttl-millis", ModelType.LONG, true)
-                    .setXmlName("connection-ttl-millis")
-                    .setAllowExpression(true)
-                    .setValidator(new LongRangeValidator(-1L, true))
-                    .build();
-    protected static final SimpleAttributeDefinition CONNECTION_TIMEOUT =
-            new SimpleAttributeDefinitionBuilder("connection-timeout-millis", ModelType.LONG, true)
-                    .setXmlName("connection-timeout-millis")
-                    .setAllowExpression(true)
-                    .setValidator(new LongRangeValidator(-1L, true))
                     .build();
 
     protected static final SimpleAttributeDefinition ENABLE_CORS =
@@ -238,9 +219,6 @@ public class SharedAttributeDefinitons {
         ATTRIBUTES.add(ALLOW_ANY_HOSTNAME);
         ATTRIBUTES.add(DISABLE_TRUST_MANAGER);
         ATTRIBUTES.add(CONNECTION_POOL_SIZE);
-        ATTRIBUTES.add(SOCKET_TIMEOUT);
-        ATTRIBUTES.add(CONNECTION_TTL);
-        ATTRIBUTES.add(CONNECTION_TIMEOUT);
         ATTRIBUTES.add(ENABLE_CORS);
         ATTRIBUTES.add(CLIENT_KEYSTORE);
         ATTRIBUTES.add(CLIENT_KEYSTORE_PASSWORD);

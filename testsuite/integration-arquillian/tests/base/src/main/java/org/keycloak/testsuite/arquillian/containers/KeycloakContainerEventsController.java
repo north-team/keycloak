@@ -52,9 +52,8 @@ import org.wildfly.extras.creaper.core.online.OnlineOptions;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-
 import org.jboss.shrinkwrap.api.Archive;
+import org.keycloak.testsuite.util.ContainerAssume;
 
 /**
  * Changes behaviour of original ContainerEventController to stop manual containers 
@@ -96,6 +95,10 @@ public class KeycloakContainerEventsController extends ContainerEventController 
     @Override
     public void execute(BeforeClass event) {
         if (event.getTestClass().isAnnotationPresent(RestartContainer.class)) {
+
+            // stop executing the test - remote container cannot be restarted
+            ContainerAssume.assumeNotAuthServerRemote();
+
             RestartContainer restartContainer = event.getTestClass().getAnnotation(RestartContainer.class);
 
             beforeOriginalContainerStop(restartContainer);
@@ -138,10 +141,6 @@ public class KeycloakContainerEventsController extends ContainerEventController 
     protected void beforeNewContainerStart(RestartContainer restartContainer) {
         if (restartContainer.withoutKeycloakAddUserFile()) {
             removeKeycloakAddUserFile();
-        }
-
-        if (restartContainer.initializeDatabase()) {
-            clearMapStorageFiles();
         }
     }
 
@@ -200,17 +199,6 @@ public class KeycloakContainerEventsController extends ContainerEventController 
 
         }
 
-    }
-
-    private void clearMapStorageFiles() {
-        String filePath = System.getProperty("project.build.directory", "target/map");
-
-        File f = new File(filePath);
-        if (!f.exists()) return;
-
-        Arrays.stream(f.listFiles())
-                .filter(file -> file.getName().startsWith("map-") && file.getName().endsWith(".json"))
-                .forEach(File::delete);
     }
 
     /**

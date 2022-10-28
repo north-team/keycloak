@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-tests</artifactId>
-        <version>999-SNAPSHOT</version>
+        <version>12.0.4</version>
     </parent>
 
     <artifactId>integration-arquillian-tests-other</artifactId>
@@ -32,9 +32,14 @@
     <packaging>pom</packaging>
 
     <name>Other Tests Modules</name>
-
+    
     <description>Test modules that depend on the Base TestSuite.
         This POM contains common configuration for submodules.</description>
+
+    <modules>
+        <module>adapters</module>
+        <module>sssd</module>
+    </modules>
 
     <build>
         <pluginManagement>
@@ -115,15 +120,15 @@
             </dependencies>
         </profile>
         <profile>
-            <id>adapters</id>
+            <id>clean-start</id>
             <modules>
-                <module>adapters</module>
+                <module>clean-start</module>
             </modules>
         </profile>
         <profile>
-            <id>old-admin-console</id>
+            <id>console-ui-tests</id>
             <modules>
-                <module>old-admin-console</module>
+                <module>console</module>
             </modules>
         </profile>
         <profile>
@@ -139,9 +144,9 @@
             </modules>
         </profile>
         <profile>
-            <id>sssd</id>
+            <id>server-config-migration</id>
             <modules>
-                <module>sssd</module>
+                <module>server-config-migration</module>
             </modules>
         </profile>
         <profile>
@@ -154,14 +159,6 @@
             <id>springboot</id>
             <modules>
                 <module>springboot-tests</module>
-            </modules>
-        </profile>
-        <profile>
-            <id>webauthn</id>
-            <modules>
-                <module>old-admin-console</module>
-                <module>base-ui</module>
-                <module>webauthn</module>
             </modules>
         </profile>
     </profiles>

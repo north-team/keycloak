@@ -24,14 +24,7 @@ import org.keycloak.authentication.actiontoken.ExplainedTokenVerificationExcepti
 import org.keycloak.common.VerificationException;
 import org.keycloak.events.Errors;
 import org.keycloak.forms.login.LoginFormsProvider;
-import org.keycloak.models.SingleUseObjectKeyModel;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.Constants;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.SingleUseObjectProvider;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionModel;
+import org.keycloak.models.*;
 import org.keycloak.protocol.oidc.utils.RedirectUtils;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.services.managers.AuthenticationManager;
@@ -42,8 +35,6 @@ import org.keycloak.sessions.CommonClientSessionModel.Action;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.jboss.logging.Logger;
-
-import static org.keycloak.utils.LockObjectsForModification.lockUserSessionsForModification;
 
 /**
  *
@@ -123,7 +114,7 @@ public class LoginActionsServiceChecks {
             return;
         }
 
-        UserSessionModel userSession = lockUserSessionsForModification(context.getSession(), () -> context.getSession().sessions().getUserSession(context.getRealm(), authSessionId));
+        UserSessionModel userSession = context.getSession().sessions().getUserSession(context.getRealm(), authSessionId);
         boolean hasNoRequiredActions =
           (userSession == null || userSession.getUser().getRequiredActionsStream().count() == 0)
           &&
@@ -146,7 +137,7 @@ public class LoginActionsServiceChecks {
      *  it optionally also injects the user using the given function (e.g. into session context).
      */
     public static void checkIsUserValid(KeycloakSession session, RealmModel realm, String userId, Consumer<UserModel> userSetter) throws VerificationException {
-        UserModel user = userId == null ? null : session.users().getUserById(realm, userId);
+        UserModel user = userId == null ? null : session.users().getUserById(userId, realm);
 
         if (user == null) {
             throw new ExplainedVerificationException(Errors.USER_NOT_FOUND, Messages.INVALID_USER);
@@ -165,7 +156,7 @@ public class LoginActionsServiceChecks {
      *  Verifies whether the user given by ID both exists in the current realm. If yes,
      *  it optionally also injects the user using the given function (e.g. into session context).
      */
-    public static <T extends JsonWebToken & SingleUseObjectKeyModel> void checkIsUserValid(T token, ActionTokenContext<T> context) throws VerificationException {
+    public static <T extends JsonWebToken & ActionTokenKeyModel> void checkIsUserValid(T token, ActionTokenContext<T> context) throws VerificationException {
         try {
             checkIsUserValid(context.getSession(), context.getRealm(), token.getUserId(), context.getAuthenticationSession()::setAuthenticatedUser);
         } catch (ExplainedVerificationException ex) {
@@ -299,10 +290,10 @@ public class LoginActionsServiceChecks {
         return true;
     }
 
-    public static <T extends JsonWebToken & SingleUseObjectKeyModel> void checkTokenWasNotUsedYet(T token, ActionTokenContext<T> context) throws VerificationException {
-        SingleUseObjectProvider singleUseObjectProvider = context.getSession().getProvider(SingleUseObjectProvider.class);
+    public static <T extends JsonWebToken & ActionTokenKeyModel> void checkTokenWasNotUsedYet(T token, ActionTokenContext<T> context) throws VerificationException {
+        ActionTokenStoreProvider actionTokenStore = context.getSession().getProvider(ActionTokenStoreProvider.class);
 
-        if (singleUseObjectProvider.get(token.serializeKey()) != null) {
+        if (actionTokenStore.get(token) != null) {
             throw new ExplainedTokenVerificationException(token, Errors.EXPIRED_CODE, Messages.EXPIRED_ACTION);
         }
     }

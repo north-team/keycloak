@@ -19,6 +19,8 @@ package org.keycloak.services.resources.account;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -105,15 +107,19 @@ public class LinkedAccountsResource {
     }
     
     private Set<String> findSocialIds() {
-       return session.getKeycloakSessionFactory().getProviderFactoriesStream(SocialIdentityProvider.class)
-               .map(ProviderFactory::getId)
-               .collect(Collectors.toSet());
+       Set<String> socialIds = new HashSet();
+       List<ProviderFactory> providerFactories = session.getKeycloakSessionFactory().getProviderFactories(SocialIdentityProvider.class);
+       for (ProviderFactory factory: providerFactories) {
+           socialIds.add(factory.getId());
+       }
+       
+       return socialIds;
     }
 
     public SortedSet<LinkedAccountRepresentation> getLinkedAccounts(KeycloakSession session, RealmModel realm, UserModel user) {
         Set<String> socialIds = findSocialIds();
         return realm.getIdentityProvidersStream().filter(IdentityProviderModel::isEnabled)
-                .map(provider -> toLinkedAccountRepresentation(provider, socialIds, session.users().getFederatedIdentitiesStream(realm, user)))
+                .map(provider -> toLinkedAccountRepresentation(provider, socialIds, session.users().getFederatedIdentitiesStream(user, realm)))
                 .collect(Collectors.toCollection(TreeSet::new));
     }
 
@@ -203,13 +209,13 @@ public class LinkedAccountsResource {
             return ErrorResponse.error(errorMessage, Response.Status.BAD_REQUEST);
         }
         
-        FederatedIdentityModel link = session.users().getFederatedIdentity(realm, user, providerId);
+        FederatedIdentityModel link = session.users().getFederatedIdentity(user, providerId, realm);
         if (link == null) {
             return ErrorResponse.error(Messages.FEDERATED_IDENTITY_NOT_ACTIVE, Response.Status.BAD_REQUEST);
         }
 
         // Removing last social provider is not possible if you don't have other possibility to authenticate
-        if (!(session.users().getFederatedIdentitiesStream(realm, user).count() > 1 || user.getFederationLink() != null || isPasswordSet())) {
+        if (!(session.users().getFederatedIdentitiesStream(user, realm).count() > 1 || user.getFederationLink() != null || isPasswordSet())) {
             return ErrorResponse.error(Messages.FEDERATED_IDENTITY_REMOVING_LAST_PROVIDER, Response.Status.BAD_REQUEST);
         }
         
@@ -245,7 +251,7 @@ public class LinkedAccountsResource {
     }
     
     private boolean isPasswordSet() {
-        return user.credentialManager().isConfiguredFor(PasswordCredentialModel.TYPE);
+        return session.userCredentialManager().isConfiguredFor(realm, user, PasswordCredentialModel.TYPE);
     }
     
     private boolean isValidProvider(String providerId) {

@@ -18,8 +18,11 @@
 package org.keycloak.services.resources;
 
 import java.net.URI;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
-import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
@@ -152,8 +155,7 @@ public class SessionCodeChecks {
         // object retrieve
         AuthenticationSessionManager authSessionManager = new AuthenticationSessionManager(session);
         AuthenticationSessionModel authSession = null;
-        if (authSessionId != null)
-            authSession = authSessionManager.getAuthenticationSessionByIdAndClient(realm, authSessionId, client, tabId);
+        if (authSessionId != null) authSession = authSessionManager.getAuthenticationSessionByIdAndClient(realm, authSessionId, client, tabId);
         AuthenticationSessionModel authSessionCookie = authSessionManager.getCurrentAuthenticationSession(realm, client, tabId);
 
         if (authSession != null && authSessionCookie != null && !authSession.getParentSession().getId().equals(authSessionCookie.getParentSession().getId())) {
@@ -203,7 +205,6 @@ public class SessionCodeChecks {
         if (authSession == null) {
             return false;
         }
-        session.getContext().setAuthenticationSession(authSession);
 
         // Check cached response from previous action request
         response = BrowserHistoryHelper.getInstance().loadSavedResponse(session, authSession);
@@ -221,12 +222,12 @@ public class SessionCodeChecks {
             return false;
         }
 
-        setClientToEvent(client);
+        event.client(client);
         session.getContext().setClient(client);
 
-        if (checkClientDisabled(client)) {
+        if (!client.isEnabled()) {
             event.error(Errors.CLIENT_DISABLED);
-            response = ErrorPage.error(session, authSession, Response.Status.BAD_REQUEST, Messages.LOGIN_REQUESTER_NOT_ENABLED);
+            response = ErrorPage.error(session,authSession, Response.Status.BAD_REQUEST, Messages.LOGIN_REQUESTER_NOT_ENABLED);
             clientCode.removeExpiredClientSession();
             return false;
         }
@@ -238,7 +239,7 @@ public class SessionCodeChecks {
             String lastFlow = authSession.getAuthNote(AuthenticationProcessor.CURRENT_FLOW_PATH);
 
             // Check if we transitted between flows (eg. clicking "register" on login screen)
-            if (execution == null && !flowPath.equals(lastFlow)) {
+            if (execution==null && !flowPath.equals(lastFlow)) {
                 logger.debugf("Transition between flows! Current flow: %s, Previous flow: %s", flowPath, lastFlow);
 
                 // Don't allow moving to different flow if I am on requiredActions already
@@ -273,18 +274,15 @@ public class SessionCodeChecks {
                 // In case that is replayed action, but sent to the same FORM like actual FORM, we just re-render the page
                 if (ObjectUtil.isEqualOrBothNull(execution, authSession.getAuthNote(AuthenticationProcessor.CURRENT_AUTHENTICATION_EXECUTION))) {
                     String latestFlowPath = authSession.getAuthNote(AuthenticationProcessor.CURRENT_FLOW_PATH);
-                    if (latestFlowPath != null) {
-                        URI redirectUri = getLastExecutionUrl(latestFlowPath, execution, tabId);
+                    URI redirectUri = getLastExecutionUrl(latestFlowPath, execution, tabId);
 
-                        logger.debugf("Invalid action code, but execution matches. So just redirecting to %s", redirectUri);
-                        authSession.setAuthNote(LoginActionsService.FORWARDED_ERROR_MESSAGE_NOTE, Messages.EXPIRED_ACTION);
-                        response = Response.status(Response.Status.FOUND).location(redirectUri).build();
-                        return false;
-                    }
+                    logger.debugf("Invalid action code, but execution matches. So just redirecting to %s", redirectUri);
+                    authSession.setAuthNote(LoginActionsService.FORWARDED_ERROR_MESSAGE_NOTE, Messages.EXPIRED_ACTION);
+                    response = Response.status(Response.Status.FOUND).location(redirectUri).build();
+                } else {
+                    response = showPageExpired(authSession);
                 }
-                response = showPageExpired(authSession);
                 return false;
-
             }
 
 
@@ -294,11 +292,6 @@ public class SessionCodeChecks {
             }
             return true;
         }
-    }
-
-    // Client is not null
-    protected void setClientToEvent(ClientModel client) {
-        event.client(client);
     }
 
 
@@ -328,7 +321,7 @@ public class SessionCodeChecks {
     }
 
 
-    protected boolean isActionActive(ClientSessionCode.ActionType actionType) {
+    private boolean isActionActive(ClientSessionCode.ActionType actionType) {
         if (!clientCode.isActionActive(actionType)) {
             event.clone().error(Errors.EXPIRED_CODE);
 
@@ -375,18 +368,12 @@ public class SessionCodeChecks {
     }
 
 
-    protected Response restartAuthenticationSessionFromCookie(RootAuthenticationSessionModel existingRootSession) {
+    private Response restartAuthenticationSessionFromCookie(RootAuthenticationSessionModel existingRootSession) {
         logger.debug("Authentication session not found. Trying to restart from cookie.");
         AuthenticationSessionModel authSession = null;
 
-        Cookie cook = RestartLoginCookie.getRestartCookie(session);
-        if (cook == null) {
-            event.error(Errors.COOKIE_NOT_FOUND);
-            return ErrorPage.error(session, authSession, Response.Status.BAD_REQUEST, Messages.COOKIE_NOT_FOUND);
-        }
-
         try {
-            authSession = RestartLoginCookie.restartSession(session, realm, existingRootSession, clientId, cook);
+            authSession = RestartLoginCookie.restartSession(session, realm, existingRootSession, clientId);
         } catch (Exception e) {
             ServicesLogger.LOGGER.failedToParseRestartLoginCookie(e);
         }
@@ -442,17 +429,5 @@ public class SessionCodeChecks {
     private Response showPageExpired(AuthenticationSessionModel authSession) {
         return new AuthenticationFlowURLHelper(session, realm, uriInfo)
                 .showPageExpired(authSession);
-    }
-
-    protected KeycloakSession getSession() {
-        return session;
-    }
-
-    protected EventBuilder getEvent() {
-        return event;
-    }
-
-    protected boolean checkClientDisabled(ClientModel client) {
-        return !client.isEnabled();
     }
 }

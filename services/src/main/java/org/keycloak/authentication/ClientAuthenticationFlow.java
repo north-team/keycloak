@@ -75,13 +75,10 @@ public class ClientAuthenticationFlow implements AuthenticationFlow {
             if (client != null) {
                 String expectedClientAuthType = client.getClientAuthenticatorType();
 
-                // Fallback to secret just in case (for backwards compatibility). Also for public clients, ignore the "clientAuthenticatorType", which is set to them and stick to the
-                // default, which set the client just based on "client_id" parameter
-                if (expectedClientAuthType == null || client.isPublicClient()) {
-                    if (expectedClientAuthType == null) {
-                        ServicesLogger.LOGGER.authMethodFallback(client.getClientId(), expectedClientAuthType);
-                    }
+                // Fallback to secret just in case (for backwards compatibility)
+                if (expectedClientAuthType == null) {
                     expectedClientAuthType = KeycloakModelUtils.getDefaultClientAuthenticatorType();
+                    ServicesLogger.LOGGER.authMethodFallback(client.getClientId(), expectedClientAuthType);
                 }
 
                 // Check if client authentication matches
@@ -107,8 +104,7 @@ public class ClientAuthenticationFlow implements AuthenticationFlow {
             processor.getEvent().error(Errors.INVALID_CLIENT);
             return alternativeChallenge;
         }
-        
-        throw new AuthenticationFlowException("Invalid client or Invalid client credentials", AuthenticationFlowError.CLIENT_NOT_FOUND);
+        throw new AuthenticationFlowException("Invalid client credentials", AuthenticationFlowError.INVALID_CREDENTIALS);
     }
 
     protected List<AuthenticationExecutionModel> findExecutionsToRun() {

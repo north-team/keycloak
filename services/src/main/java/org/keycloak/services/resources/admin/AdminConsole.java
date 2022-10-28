@@ -40,15 +40,13 @@ import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.ClientManager;
 import org.keycloak.services.managers.RealmManager;
-import org.keycloak.services.resources.Cors;
 import org.keycloak.theme.FreeMarkerException;
+import org.keycloak.theme.FreeMarkerUtil;
 import org.keycloak.theme.Theme;
-import org.keycloak.theme.freemarker.FreeMarkerProvider;
 import org.keycloak.urls.UrlType;
 import org.keycloak.utils.MediaType;
 
 import javax.ws.rs.GET;
-import javax.ws.rs.OPTIONS;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
@@ -165,11 +163,6 @@ public class AdminConsole {
         public void setLocale(Locale locale) {
             this.locale = locale;
         }
-
-        @JsonProperty(value = "locale")
-        public String getLocaleLanguageTag() {
-            return locale != null ? locale.toLanguageTag() : null;
-        }
     }
 
     /**
@@ -187,12 +180,6 @@ public class AdminConsole {
             throw new NotFoundException("Could not find admin console client");
         }
         return new ClientManager(new RealmManager(session)).toInstallationRepresentation(realm, consoleApp, session.getContext().getUri().getBaseUri());    }
-
-    @Path("whoami")
-    @OPTIONS
-    public Response whoAmIPreFlight() {
-        return new AdminCorsPreflightService(request).preflight();
-    }
 
     /**
      * Permission information
@@ -242,9 +229,6 @@ public class AdminConsole {
 
         Locale locale = session.getContext().resolveLocale(user);
 
-        Cors.add(request).allowedOrigins(authResult.getToken()).allowedMethods("GET").auth()
-                .build(response);
-
         return Response.ok(new WhoAmI(user.getId(), realm.getName(), displayName, createRealm, realmAccess, locale)).build();
     }
 
@@ -260,6 +244,7 @@ public class AdminConsole {
             getRealmAdminAccess(realm, realmAdminApp, user, realmAdminAccess);
         });
     }
+
 
     private static <T> HashSet<T> union(Set<T> set1, Set<T> set2) {
         if (set1 == null && set2 == null) {
@@ -298,7 +283,7 @@ public class AdminConsole {
         URI redirect = AdminRoot.adminConsoleUrl(session.getContext().getUri(UrlType.ADMIN)).build(realm.getName());
 
         return Response.status(302).location(
-                OIDCLoginProtocolService.logoutUrl(session.getContext().getUri(UrlType.ADMIN)).queryParam("post_logout_redirect_uri", redirect.toString()).build(realm.getName())
+                OIDCLoginProtocolService.logoutUrl(session.getContext().getUri(UrlType.ADMIN)).queryParam("redirect_uri", redirect.toString()).build(realm.getName())
         ).build();
     }
 
@@ -328,14 +313,7 @@ public class AdminConsole {
                 adminBaseUrl = adminBaseUrl.substring(0, adminBaseUrl.length() - 1);
             }
 
-            String kcJsRelativeBasePath = adminBaseUri.getPath();
-
-            if(!kcJsRelativeBasePath.endsWith("/")) {
-                kcJsRelativeBasePath = kcJsRelativeBasePath + "/";
-            }
-
             URI authServerBaseUri = session.getContext().getUri(UrlType.FRONTEND).getBaseUri();
-
             String authServerBaseUrl = authServerBaseUri.toString();
             if (authServerBaseUrl.endsWith("/")) {
                 authServerBaseUrl = authServerBaseUrl.substring(0, authServerBaseUrl.length() - 1);
@@ -346,13 +324,11 @@ public class AdminConsole {
             map.put("consoleBaseUrl", Urls.adminConsoleRoot(adminBaseUri, realm.getName()).getPath());
             map.put("resourceUrl", Urls.themeRoot(adminBaseUri).getPath() + "/admin/" + theme.getName());
             map.put("resourceCommonUrl", Urls.themeRoot(adminBaseUri).getPath() + "/common/keycloak");
-            map.put("keycloakJsUrl", kcJsRelativeBasePath + "js/keycloak.js?version=" + Version.RESOURCES_VERSION);
             map.put("masterRealm", Config.getAdminRealm());
             map.put("resourceVersion", Version.RESOURCES_VERSION);
-            map.put("loginRealm", realm.getName());
             map.put("properties", theme.getProperties());
 
-            FreeMarkerProvider freeMarkerUtil = session.getProvider(FreeMarkerProvider.class);
+            FreeMarkerUtil freeMarkerUtil = new FreeMarkerUtil();
             String result = freeMarkerUtil.processTemplate(map, "index.ftl", theme);
             Response.ResponseBuilder builder = Response.status(Response.Status.OK).type(MediaType.TEXT_HTML_UTF_8).language(Locale.ENGLISH).entity(result);
 

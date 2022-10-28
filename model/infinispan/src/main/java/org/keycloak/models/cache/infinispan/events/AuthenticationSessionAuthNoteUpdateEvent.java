@@ -23,8 +23,6 @@ import java.io.ObjectOutput;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
-
 import org.infinispan.commons.marshall.Externalizer;
 import org.infinispan.commons.marshall.MarshallUtil;
 import org.infinispan.commons.marshall.SerializeWith;
@@ -74,20 +72,6 @@ public class AuthenticationSessionAuthNoteUpdateEvent implements ClusterEvent {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        AuthenticationSessionAuthNoteUpdateEvent that = (AuthenticationSessionAuthNoteUpdateEvent) o;
-        return Objects.equals(authSessionId, that.authSessionId) && Objects.equals(tabId, that.tabId) && Objects.equals(clientUUID, that.clientUUID);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(authSessionId, tabId, clientUUID);
-    }
-
-    @Override
     public String toString() {
         return String.format("AuthenticationSessionAuthNoteUpdateEvent [ authSessionId=%s, tabId=%s, clientUUID=%s, authNotesFragment=%s ]",
                 authSessionId, clientUUID, authNotesFragment);
@@ -122,7 +106,7 @@ public class AuthenticationSessionAuthNoteUpdateEvent implements ClusterEvent {
               MarshallUtil.unmarshallString(input),
               MarshallUtil.unmarshallString(input),
               MarshallUtil.unmarshallString(input),
-              MarshallUtil.<String, String, Map<String, String>>unmarshallMap(input, HashMap::new)
+              MarshallUtil.unmarshallMap(input, HashMap::new)
             );
         }
 

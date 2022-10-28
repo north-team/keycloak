@@ -214,19 +214,15 @@ public abstract class AbstractServletsAdapterTest extends AbstractAdapterTest {
         setTimeOffset(timeOffset);
 
         for (String servletUri : servletUris) {
-            setAdapterServletTimeOffset(timeOffset, servletUri);
+            String timeOffsetUri = UriBuilder.fromUri(servletUri)
+                    .queryParam(AdapterActionsFilter.TIME_OFFSET_PARAM, timeOffset)
+                    .build().toString();
+
+            DroneUtils.getCurrentDriver().navigate().to(timeOffsetUri);
+            waitForPageToLoad();
+            String pageSource = DroneUtils.getCurrentDriver().getPageSource();
+            System.out.println(pageSource);
         }
-    }
-
-    protected void setAdapterServletTimeOffset(int timeOffset, String servletUri) {
-        String timeOffsetUri = UriBuilder.fromUri(servletUri)
-                .queryParam(AdapterActionsFilter.TIME_OFFSET_PARAM, timeOffset)
-                .build().toString();
-
-        DroneUtils.getCurrentDriver().navigate().to(timeOffsetUri);
-        waitForPageToLoad();
-        String pageSource = DroneUtils.getCurrentDriver().getPageSource();
-        log.info(pageSource);
     }
 
 }

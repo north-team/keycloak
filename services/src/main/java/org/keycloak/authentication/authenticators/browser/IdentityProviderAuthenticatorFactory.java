@@ -18,8 +18,11 @@
 package org.keycloak.authentication.authenticators.browser;
 
 import org.keycloak.Config;
+import org.keycloak.OAuth2Constants;
 import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.AuthenticatorFactory;
+import org.keycloak.authentication.DisplayTypeAuthenticatorFactory;
+import org.keycloak.authentication.authenticators.AttemptedAuthenticator;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
@@ -33,13 +36,13 @@ import static org.keycloak.provider.ProviderConfigProperty.STRING_TYPE;
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
-public class IdentityProviderAuthenticatorFactory implements AuthenticatorFactory {
+public class IdentityProviderAuthenticatorFactory implements AuthenticatorFactory, DisplayTypeAuthenticatorFactory {
+
     protected static final AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
             AuthenticationExecutionModel.Requirement.REQUIRED, AuthenticationExecutionModel.Requirement.ALTERNATIVE, AuthenticationExecutionModel.Requirement.DISABLED
     };
 
-    public static final String PROVIDER_ID = "identity-provider-redirector";
-    public static final String DEFAULT_PROVIDER = "defaultProvider";
+    protected static final String DEFAULT_PROVIDER = "defaultProvider";
 
     @Override
     public String getDisplayType() {
@@ -83,6 +86,13 @@ public class IdentityProviderAuthenticatorFactory implements AuthenticatorFactor
     }
 
     @Override
+    public Authenticator createDisplay(KeycloakSession session, String displayType) {
+        if (displayType == null) return new IdentityProviderAuthenticator();
+        if (!OAuth2Constants.DISPLAY_CONSOLE.equalsIgnoreCase(displayType)) return null;
+        return AttemptedAuthenticator.SINGLETON;  // ignore this authenticator
+    }
+
+    @Override
     public void init(Config.Scope config) {
     }
 
@@ -96,7 +106,7 @@ public class IdentityProviderAuthenticatorFactory implements AuthenticatorFactor
 
     @Override
     public String getId() {
-        return PROVIDER_ID;
+        return "identity-provider-redirector";
     }
 
 }

@@ -48,8 +48,6 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.X509Certificate;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.keycloak.common.util.HtmlUtils.escapeAttribute;
 import static org.keycloak.saml.common.util.StringUtil.isNotNull;
@@ -313,6 +311,7 @@ public class BaseSAML2BindingBuilder<T extends BaseSAML2BindingBuilder> {
     }
 
     public String buildHtml(String samlResponse, String actionUrl, boolean asRequest) {
+        StringBuilder builder = new StringBuilder();
 
         String key = GeneralConstants.SAML_RESPONSE_KEY;
 
@@ -320,43 +319,31 @@ public class BaseSAML2BindingBuilder<T extends BaseSAML2BindingBuilder> {
             key = GeneralConstants.SAML_REQUEST_KEY;
         }
 
-        Map<String, String> inputTypes = new HashMap<>();
-        inputTypes.put(key, samlResponse);
-        if (isNotNull(relayState)) {
-            inputTypes.put(GeneralConstants.RELAY_STATE, relayState);
-        }
-
-        return buildHtmlForm(actionUrl, inputTypes);
-    }
-
-    public String buildHtmlForm(String actionUrl, Map<String, String> inputTypes) {
-        StringBuilder builder = new StringBuilder();
-
         builder.append("<HTML>")
-                .append("<HEAD>")
+          .append("<HEAD>")
 
-                .append("<TITLE>Authentication Redirect</TITLE>")
-                .append("</HEAD>")
-                .append("<BODY Onload=\"document.forms[0].submit()\">")
+          .append("<TITLE>Authentication Redirect</TITLE>")
+          .append("</HEAD>")
+          .append("<BODY Onload=\"document.forms[0].submit()\">")
 
-                .append("<FORM METHOD=\"POST\" ACTION=\"").append(actionUrl).append("\">");
+          .append("<FORM METHOD=\"POST\" ACTION=\"").append(actionUrl).append("\">")
+          .append("<INPUT TYPE=\"HIDDEN\" NAME=\"").append(key).append("\"").append(" VALUE=\"").append(samlResponse).append("\"/>");
 
         builder.append("<p>Redirecting, please wait.</p>");
 
-        for (String key: inputTypes.keySet()) {
-            builder.append("<INPUT TYPE=\"HIDDEN\" NAME=\"").append(key).append("\"").append(" VALUE=\"").append(escapeAttribute(inputTypes.get(key))).append("\"/>");
+        if (isNotNull(relayState)) {
+            builder.append("<INPUT TYPE=\"HIDDEN\" NAME=\"RelayState\" " + "VALUE=\"").append(escapeAttribute(relayState)).append("\"/>");
         }
 
         builder.append("<NOSCRIPT>")
-                .append("<P>JavaScript is disabled. We strongly recommend to enable it. Click the button below to continue.</P>")
-                .append("<INPUT TYPE=\"SUBMIT\" VALUE=\"CONTINUE\" />")
-                .append("</NOSCRIPT>")
+          .append("<P>JavaScript is disabled. We strongly recommend to enable it. Click the button below to continue.</P>")
+          .append("<INPUT TYPE=\"SUBMIT\" VALUE=\"CONTINUE\" />")
+          .append("</NOSCRIPT>")
 
-                .append("</FORM></BODY></HTML>");
+          .append("</FORM></BODY></HTML>");
 
         return builder.toString();
     }
-
 
     public String base64Encoded(Document document) throws ConfigurationException, ProcessingException, IOException  {
         String documentAsString = DocumentUtil.getDocumentAsString(document);
@@ -372,7 +359,7 @@ public class BaseSAML2BindingBuilder<T extends BaseSAML2BindingBuilder> {
         int pos = builder.getQuery() == null? 0 : builder.getQuery().length();
         builder.queryParam(samlParameterName, base64Encoded(document));
         if (relayState != null) {
-            builder.queryParam(GeneralConstants.RELAY_STATE, relayState);
+            builder.queryParam("RelayState", relayState);
         }
 
         if (sign) {

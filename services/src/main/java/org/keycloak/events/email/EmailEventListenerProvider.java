@@ -50,8 +50,6 @@ public class EmailEventListenerProvider implements EventListenerProvider {
         this.model = session.realms();
         this.emailTemplateProvider = emailTemplateProvider;
         this.includedEvents = includedEvents;
-
-        this.session.getTransactionManager().enlistAfterCompletion(tx);
     }
 
     @Override
@@ -65,7 +63,7 @@ public class EmailEventListenerProvider implements EventListenerProvider {
     
     private void sendEmail(Event event) {
         RealmModel realm = model.getRealm(event.getRealmId());
-        UserModel user = session.users().getUserById(realm, event.getUserId());
+        UserModel user = session.users().getUserById(event.getUserId(), realm);
         if (user != null && user.getEmail() != null && user.isEmailVerified()) {
             try {
                 emailTemplateProvider.setRealm(realm).setUser(user).sendEvent(event);

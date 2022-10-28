@@ -17,141 +17,175 @@
 
 package org.keycloak.models.map.role;
 
-import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Stream;
 import org.jboss.logging.Logger;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.RealmModel;
+
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.map.storage.MapKeycloakTransaction;
+import org.keycloak.models.map.common.Serialization;
+import java.util.Comparator;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.keycloak.models.map.storage.MapStorage;
-import org.keycloak.models.RoleModel.SearchableFields;
-import org.keycloak.models.RoleProvider;
-import org.keycloak.models.map.storage.ModelCriteriaBuilder.Operator;
-import org.keycloak.models.map.storage.criteria.DefaultModelCriteria;
-
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
-import static org.keycloak.models.map.common.AbstractMapProviderFactory.MapProviderObjectType.ROLE_AFTER_REMOVE;
-import static org.keycloak.models.map.common.AbstractMapProviderFactory.MapProviderObjectType.ROLE_BEFORE_REMOVE;
-import static org.keycloak.models.map.storage.QueryParameters.Order.ASCENDING;
-import static org.keycloak.models.map.storage.QueryParameters.withCriteria;
-import static org.keycloak.models.map.storage.criteria.DefaultModelCriteria.criteria;
+import org.keycloak.models.RoleContainerModel;
+import org.keycloak.models.RoleProvider;
+import org.keycloak.models.map.common.StreamUtils;
 
 public class MapRoleProvider implements RoleProvider {
 
     private static final Logger LOG = Logger.getLogger(MapRoleProvider.class);
+    private static final Predicate<MapRoleEntity> ALWAYS_FALSE = role -> { return false; };
     private final KeycloakSession session;
-    final MapKeycloakTransaction<MapRoleEntity, RoleModel> tx;
+    final MapKeycloakTransaction<UUID, MapRoleEntity> tx;
+    private final MapStorage<UUID, MapRoleEntity> roleStore;
 
-    public MapRoleProvider(KeycloakSession session, MapStorage<MapRoleEntity, RoleModel> roleStore) {
+    private static final Comparator<MapRoleEntity> COMPARE_BY_NAME = new Comparator<MapRoleEntity>() {
+        @Override
+        public int compare(MapRoleEntity o1, MapRoleEntity o2) {
+            String r1 = o1 == null ? null : o1.getName();
+            String r2 = o2 == null ? null : o2.getName();
+            return r1 == r2 ? 0
+              : r1 == null ? -1
+              : r2 == null ? 1
+              : r1.compareTo(r2);
+
+        }
+    };
+
+    public MapRoleProvider(KeycloakSession session, MapStorage<UUID, MapRoleEntity> roleStore) {
         this.session = session;
-        this.tx = roleStore.createTransaction(session);
+        this.roleStore = roleStore;
+        this.tx = new MapKeycloakTransaction<>(roleStore);
         session.getTransactionManager().enlist(tx);
     }
 
     private Function<MapRoleEntity, RoleModel> entityToAdapterFunc(RealmModel realm) {
         // Clone entity before returning back, to avoid giving away a reference to the live object to the caller
-        return origEntity -> new MapRoleAdapter(session, realm, origEntity);
+
+        return origEntity -> new MapRoleAdapter(session, realm, registerEntityForChanges(origEntity));
+    }
+
+    private MapRoleEntity registerEntityForChanges(MapRoleEntity origEntity) {
+        final MapRoleEntity res = Serialization.from(origEntity);
+        tx.putIfChanged(origEntity.getId(), res, MapRoleEntity::isUpdated);
+        return res;
+    }
+
+    private Predicate<MapRoleEntity> entityRealmFilter(RealmModel realm) {
+        if (realm == null || realm.getId() == null) {
+            return MapRoleProvider.ALWAYS_FALSE;
+        }
+        String realmId = realm.getId();
+        return entity -> Objects.equals(realmId, entity.getRealmId());
+    }
+
+    private Predicate<MapRoleEntity> entityClientFilter(ClientModel client) {
+        if (client == null || client.getId() == null) {
+            return MapRoleProvider.ALWAYS_FALSE;
+        }
+        String clientId = client.getId();
+        return entity -> entity.isClientRole() && 
+                Objects.equals(clientId, entity.getClientId());
+    }
+
+    private Stream<MapRoleEntity> getNotRemovedUpdatedRolesStream(RealmModel realm) {
+        Stream<MapRoleEntity> updatedAndNotRemovedRolesStream = roleStore.entrySet().stream()
+          .map(tx::getUpdated)    // If the role has been removed, tx.get will return null, otherwise it will return me.getValue()
+          .filter(Objects::nonNull);
+        return Stream.concat(tx.createdValuesStream(), updatedAndNotRemovedRolesStream)
+                .filter(entityRealmFilter(realm));
     }
 
     @Override
     public RoleModel addRealmRole(RealmModel realm, String id, String name) {
         if (getRealmRole(realm, name) != null) {
-            throw new ModelDuplicateException("Role with the same name exists: " + name + " for realm " + realm.getName());
-        }
-
-        LOG.tracef("addRealmRole(%s, %s, %s)%s", realm, id, name, getShortStackTrace());
-
-        MapRoleEntity entity = new MapRoleEntityImpl();
-        entity.setId(id);
-        entity.setRealmId(realm.getId());
-        entity.setName(name);
-        entity.setClientRole(false);
-        if (entity.getId() != null && tx.read(entity.getId()) != null) {
             throw new ModelDuplicateException("Role exists: " + id);
         }
-        entity = tx.create(entity);
+
+        final UUID entityId = id == null ? UUID.randomUUID() : UUID.fromString(id);
+
+        LOG.tracef("addRealmRole(%s, %s, %s)%s", realm.getName(), id, name, getShortStackTrace());
+
+        MapRoleEntity entity = new MapRoleEntity(entityId, realm.getId());
+        entity.setName(name);
+        entity.setRealmId(realm.getId());
+        if (tx.get(entity.getId(), roleStore::get) != null) {
+            throw new ModelDuplicateException("Role exists: " + id);
+        }
+        tx.putIfAbsent(entity.getId(), entity);
         return entityToAdapterFunc(realm).apply(entity);
     }
 
     @Override
     public Stream<RoleModel> getRealmRolesStream(RealmModel realm, Integer first, Integer max) {
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
-                 .compare(SearchableFields.IS_CLIENT_ROLE, Operator.NE, true);
-
-        return tx.read(withCriteria(mcb).pagination(first, max, SearchableFields.NAME))
-            .map(entityToAdapterFunc(realm));
-    }
-
-    @Override
-    public Stream<RoleModel> getRolesStream(RealmModel realm, Stream<String> ids, String search, Integer first, Integer max) {
-        LOG.tracef("getRolesStream(%s, %s, %s, %d, %d)%s", realm, ids, search, first, max, getShortStackTrace());
-        if (ids == null) return Stream.empty();
-
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(RoleModel.SearchableFields.ID, Operator.IN, ids)
-                .compare(RoleModel.SearchableFields.REALM_ID, Operator.EQ, realm.getId());
-
-        if (search != null) {
-            mcb = mcb.compare(RoleModel.SearchableFields.NAME, Operator.ILIKE, "%" + search + "%");
+        Stream<RoleModel> s = getRealmRolesStream(realm);
+        if (first != null && first >= 0) {
+            s = s.skip(first);
         }
-
-        return tx.read(withCriteria(mcb).pagination(first, max, RoleModel.SearchableFields.NAME))
-                .map(entityToAdapterFunc(realm));
+        if (max != null && max >= 0) {
+            s = s.limit(max);
+        }
+        return s;
     }
 
     @Override
     public Stream<RoleModel> getRealmRolesStream(RealmModel realm) {
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
-                 .compare(SearchableFields.IS_CLIENT_ROLE, Operator.NE, true);
-        
-        return tx.read(withCriteria(mcb).orderBy(SearchableFields.NAME, ASCENDING))
+        return getNotRemovedUpdatedRolesStream(realm)
+                .filter(this::isRealmRole)
+                .sorted(COMPARE_BY_NAME)
                 .map(entityToAdapterFunc(realm));
+    }
+
+    private boolean isRealmRole(MapRoleEntity role) {
+        return ! role.isClientRole();
     }
 
     @Override
     public RoleModel addClientRole(ClientModel client, String id, String name) {
         if (getClientRole(client, name) != null) {
-            throw new ModelDuplicateException("Role with the same name exists: " + name + " for client " + client.getClientId());
+            throw new ModelDuplicateException("Role exists: " + id);
         }
 
-        LOG.tracef("addClientRole(%s, %s, %s)%s", client, id, name, getShortStackTrace());
+        final UUID entityId = id == null ? UUID.randomUUID() : UUID.fromString(id);
 
-        MapRoleEntity entity = new MapRoleEntityImpl();
-        entity.setId(id);
-        entity.setRealmId(client.getRealm().getId());
+        LOG.tracef("addClientRole(%s, %s, %s)%s", client.getClientId(), id, name, getShortStackTrace());
+
+        MapRoleEntity entity = new MapRoleEntity(entityId, client.getRealm().getId());
         entity.setName(name);
         entity.setClientRole(true);
         entity.setClientId(client.getId());
-        if (entity.getId() != null && tx.read(entity.getId()) != null) {
+        if (tx.get(entity.getId(), roleStore::get) != null) {
             throw new ModelDuplicateException("Role exists: " + id);
         }
-        entity = tx.create(entity);
+        tx.putIfAbsent(entity.getId(), entity);
         return entityToAdapterFunc(client.getRealm()).apply(entity);
     }
 
     @Override
     public Stream<RoleModel> getClientRolesStream(ClientModel client, Integer first, Integer max) {
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, client.getRealm().getId())
-                .compare(SearchableFields.CLIENT_ID, Operator.EQ, client.getId());
-
-        return tx.read(withCriteria(mcb).pagination(first, max, SearchableFields.NAME))
-                .map(entityToAdapterFunc(client.getRealm()));
+        Stream<RoleModel> s = getClientRolesStream(client);
+        if (first != null && first > 0) {
+            s = s.skip(first);
+        }
+        if (max != null && max >= 0) {
+            s = s.limit(max);
+        }
+        return s;
     }
 
     @Override
     public Stream<RoleModel> getClientRolesStream(ClientModel client) {
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, client.getRealm().getId())
-          .compare(SearchableFields.CLIENT_ID, Operator.EQ, client.getId());
-
-        return tx.read(withCriteria(mcb).orderBy(SearchableFields.NAME, ASCENDING))
+        return getNotRemovedUpdatedRolesStream(client.getRealm())
+                .filter(entityClientFilter(client))
+                .sorted(COMPARE_BY_NAME)
                 .map(entityToAdapterFunc(client.getRealm()));
     }
     @Override
@@ -160,11 +194,63 @@ public class MapRoleProvider implements RoleProvider {
 
         RealmModel realm = role.isClientRole() ? ((ClientModel)role.getContainer()).getRealm() : (RealmModel)role.getContainer();
 
-        session.invalidate(ROLE_BEFORE_REMOVE, realm, role);
+        session.users().preRemove(realm, role);
 
-        tx.delete(role.getId());
+        RoleContainerModel container = role.getContainer();
+        if (container.getDefaultRolesStream().anyMatch(r -> Objects.equals(r, role.getName()))) {
+            container.removeDefaultRoles(role.getName());
+        }
 
-        session.invalidate(ROLE_AFTER_REMOVE, realm, role);
+        //remove role from realm-roles composites
+        try (Stream<MapRoleEntity> baseStream = getNotRemovedUpdatedRolesStream(realm)
+                .filter(this::isRealmRole)
+                .filter(MapRoleEntity::isComposite)) {
+
+            StreamUtils.leftInnerJoinIterable(baseStream, MapRoleEntity::getCompositeRoles)
+                .filter(pair -> role.getId().equals(pair.getV()))
+                .collect(Collectors.toSet())
+                .forEach(pair -> {
+                    MapRoleEntity origEntity = pair.getK();
+                    registerEntityForChanges(origEntity);
+                    origEntity.removeCompositeRole(role.getId());
+                });
+        }
+
+        //remove role from client-roles composites
+        session.clients().getClientsStream(realm).forEach(client -> {
+            client.deleteScopeMapping(role);
+            try (Stream<MapRoleEntity> baseStream = getNotRemovedUpdatedRolesStream(client.getRealm())
+                    .filter(entityClientFilter(client))
+                    .filter(MapRoleEntity::isComposite)) {
+                
+                StreamUtils.leftInnerJoinIterable(baseStream, MapRoleEntity::getCompositeRoles)
+                    .filter(pair -> role.getId().equals(pair.getV()))
+                    .collect(Collectors.toSet())
+                    .forEach(pair -> {
+                        MapRoleEntity origEntity = pair.getK();
+                        registerEntityForChanges(origEntity);
+                        origEntity.removeCompositeRole(role.getId());
+                    });
+            }
+        });
+        
+        session.groups().preRemove(realm, role);
+
+        // TODO: Sending an event should be extracted to store layer
+        session.getKeycloakSessionFactory().publish(new RoleContainerModel.RoleRemovedEvent() {
+            @Override
+            public RoleModel getRole() {
+                return role;
+            }
+
+            @Override
+            public KeycloakSession getKeycloakSession() {
+                return session;
+            }
+        });
+        // TODO: ^^^^^^^ Up to here
+
+        tx.remove(UUID.fromString(role.getId()));
 
         return true;
     }
@@ -184,17 +270,18 @@ public class MapRoleProvider implements RoleProvider {
         if (name == null) {
             return null;
         }
-        LOG.tracef("getRealmRole(%s, %s)%s", realm, name, getShortStackTrace());
+        LOG.tracef("getRealmRole(%s, %s)%s", realm.getName(), name, getShortStackTrace());
 
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
-                 .compare(SearchableFields.IS_CLIENT_ROLE, Operator.NE, true)
-                 .compare(SearchableFields.NAME, Operator.EQ, name);
+        String roleNameLower = name.toLowerCase();
 
-        return tx.read(withCriteria(mcb))
+        String roleId = getNotRemovedUpdatedRolesStream(realm)
+                .filter(entity -> entity.getName()!= null && Objects.equals(entity.getName().toLowerCase(), roleNameLower))
                 .map(entityToAdapterFunc(realm))
+                .map(RoleModel::getId)
                 .findFirst()
                 .orElse(null);
+        //we need to go via session.roles() not to bypass cache
+        return roleId == null ? null : session.roles().getRoleById(realm, roleId);
     }
 
     @Override
@@ -202,31 +289,31 @@ public class MapRoleProvider implements RoleProvider {
         if (name == null) {
             return null;
         }
-        LOG.tracef("getClientRole(%s, %s)%s", client, name, getShortStackTrace());
+        LOG.tracef("getClientRole(%s, %s)%s", client.getClientId(), name, getShortStackTrace());
 
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, client.getRealm().getId())
-          .compare(SearchableFields.CLIENT_ID, Operator.EQ, client.getId())
-          .compare(SearchableFields.NAME, Operator.EQ, name);
+        String roleNameLower = name.toLowerCase();
 
-        return tx.read(withCriteria(mcb))
+        String roleId = getNotRemovedUpdatedRolesStream(client.getRealm())
+                .filter(entityClientFilter(client))
+                .filter(entity -> entity.getName()!= null && Objects.equals(entity.getName().toLowerCase(), roleNameLower))
                 .map(entityToAdapterFunc(client.getRealm()))
+                .map(RoleModel::getId)
                 .findFirst()
                 .orElse(null);
+        //we need to go via session.roles() not to bypass cache
+        return roleId == null ? null : session.roles().getRoleById(client.getRealm(), roleId);
     }
 
     @Override
     public RoleModel getRoleById(RealmModel realm, String id) {
-        if (id == null || realm == null || realm.getId() == null) {
+        if (id == null) {
             return null;
         }
 
-        LOG.tracef("getRoleById(%s, %s)%s", realm, id, getShortStackTrace());
+        LOG.tracef("getRoleById(%s, %s)%s", realm.getName(), id, getShortStackTrace());
 
-        MapRoleEntity entity = tx.read(id);
-        String realmId = realm.getId();
-        // when a store doesn't store information about all realms, it doesn't have the information about
-        return (entity == null || (entity.getRealmId() != null && !Objects.equals(realmId, entity.getRealmId())))
+        MapRoleEntity entity = tx.get(UUID.fromString(id), roleStore::get);
+        return (entity == null || ! entityRealmFilter(realm).test(entity))
           ? null
           : entityToAdapterFunc(realm).apply(entity);
     }
@@ -236,16 +323,22 @@ public class MapRoleProvider implements RoleProvider {
         if (search == null) {
             return Stream.empty();
         }
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
-                .compare(SearchableFields.IS_CLIENT_ROLE, Operator.NE, true)
-                .or(
-                        mcb.compare(SearchableFields.NAME, Operator.ILIKE, "%" + search + "%"),
-                        mcb.compare(SearchableFields.DESCRIPTION, Operator.ILIKE, "%" + search + "%")
-                );
+        String searchLower = search.toLowerCase();
+        Stream<MapRoleEntity> s = getNotRemovedUpdatedRolesStream(realm)
+            .filter(entity -> 
+                (entity.getName() != null && entity.getName().toLowerCase().contains(searchLower)) || 
+                (entity.getDescription() != null && entity.getDescription().toLowerCase().contains(searchLower))
+            )
+            .sorted(COMPARE_BY_NAME);
 
-        return tx.read(withCriteria(mcb).pagination(first, max, SearchableFields.NAME))
-                .map(entityToAdapterFunc(realm));
+        if (first != null && first > 0) {
+            s = s.skip(first);
+        }
+        if (max != null && max >= 0) {
+            s = s.limit(max);
+        }
+
+        return s.map(entityToAdapterFunc(realm));
     }
 
     @Override
@@ -253,32 +346,23 @@ public class MapRoleProvider implements RoleProvider {
         if (search == null) {
             return Stream.empty();
         }
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, client.getRealm().getId())
-                .compare(SearchableFields.CLIENT_ID, Operator.EQ, client.getId())
-                .or(
-                        mcb.compare(SearchableFields.NAME, Operator.ILIKE, "%" + search + "%"),
-                        mcb.compare(SearchableFields.DESCRIPTION, Operator.ILIKE, "%" + search + "%")
-                );
+        String searchLower = search.toLowerCase();
+        Stream<MapRoleEntity> s = getNotRemovedUpdatedRolesStream(client.getRealm())
+            .filter(entityClientFilter(client))
+            .filter(entity -> 
+                (entity.getName() != null && entity.getName().toLowerCase().contains(searchLower)) || 
+                (entity.getDescription() != null && entity.getDescription().toLowerCase().contains(searchLower))
+            )
+            .sorted(COMPARE_BY_NAME);
 
-        return tx.read(withCriteria(mcb).pagination(first, max, SearchableFields.NAME))
-                .map(entityToAdapterFunc(client.getRealm()));
-    }
+        if (first != null && first > 0) {
+            s = s.skip(first);
+        }
+        if (max != null && max >= 0) {
+            s = s.limit(max);
+        }
 
-    public void preRemove(RealmModel realm) {
-        LOG.tracef("preRemove(%s)%s", realm, getShortStackTrace());
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId());
-
-        tx.delete(withCriteria(mcb));
-    }
-
-    public void preRemove(RealmModel realm, RoleModel role) {
-        // Remove reference from all composite roles
-        DefaultModelCriteria<RoleModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
-                .compare(SearchableFields.COMPOSITE_ROLE, Operator.EQ, role.getId());
-        tx.read(withCriteria(mcb)).forEach(mapRoleEntity -> mapRoleEntity.removeCompositeRole(role.getId()));
+        return s.map(entityToAdapterFunc(client.getRealm()));
     }
 
     @Override

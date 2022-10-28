@@ -22,17 +22,12 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
 public class LDAPDn {
-    
-    private static final Pattern DN_PATTERN = Pattern.compile("(?<!\\\\),");
-    private static final Pattern ENTRY_PATTERN = Pattern.compile("(?<!\\\\)\\+");
-    private static final Pattern SUB_ENTRY_PATTERN = Pattern.compile("(?<!\\\\)=");
 
     private final Deque<RDN> entries;
 
@@ -54,7 +49,7 @@ public class LDAPDn {
         if(dnString.trim().isEmpty())
             return dn;
 
-        String[] rdns = DN_PATTERN.split(dnString);
+        String[] rdns = dnString.split("(?<!\\\\),");
         for (String entryStr : rdns) {
             if (entryStr.indexOf('+') == -1) {
                 // This is 99.9% of cases where RDN consists of single key-value pair
@@ -62,7 +57,7 @@ public class LDAPDn {
                 dn.addLast(new RDN(subEntry));
             } else {
                 // This is 0.1% of cases where RDN consists of more key-value pairs like "uid=foo+cn=bar"
-                String[] subEntries = ENTRY_PATTERN.split(entryStr);
+                String[] subEntries = entryStr.split("(?<!\\\\)\\+");
                 RDN entry = new RDN();
                 for (String subEntryStr : subEntries) {
                     SubEntry subEntry = parseSingleSubEntry(dn, subEntryStr);
@@ -77,7 +72,7 @@ public class LDAPDn {
 
     // parse single sub-entry and add it to the "dn" . Assumption is that subentry is something like "uid=bar" and does not contain + character
     private static SubEntry parseSingleSubEntry(LDAPDn dn, String subEntryStr) {
-        String[] rdn = SUB_ENTRY_PATTERN.split(subEntryStr);
+        String[] rdn = subEntryStr.split("(?<!\\\\)=");
         if (rdn.length >1) {
             return new SubEntry(rdn[0].trim(), rdn[1].trim());
         } else {

@@ -42,19 +42,14 @@ import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
-import org.keycloak.Config;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.ClientsResource;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.jose.jws.JWSInput;
-import org.keycloak.models.UserSessionSpi;
-import org.keycloak.models.sessions.infinispan.InfinispanUserSessionProviderFactory;
 import org.keycloak.models.utils.KeycloakModelUtils;
-import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.common.util.Retry;
@@ -83,11 +78,8 @@ public class ConcurrentLoginTest extends AbstractConcurrencyTest {
     protected static final int CLIENTS_PER_THREAD = 30;
     protected static final int DEFAULT_CLIENTS_COUNT = CLIENTS_PER_THREAD * DEFAULT_THREADS;
 
-    private String userSessionProvider;
-
     @Before
     public void beforeTest() {
-        userSessionProvider = testingClient.server().fetch(session -> Config.getProvider(UserSessionSpi.NAME), String.class);
         createClients();
     }
 
@@ -99,7 +91,6 @@ public class ConcurrentLoginTest extends AbstractConcurrencyTest {
               .directAccessGrants()
               .redirectUris("*")
               .addWebOrigin("*")
-              .attribute(OIDCConfigAttributes.POST_LOGOUT_REDIRECT_URIS, "+")
               .secret("password")
               .build();
 
@@ -114,10 +105,6 @@ public class ConcurrentLoginTest extends AbstractConcurrencyTest {
 
     @Test
     public void concurrentLoginSingleUser() throws Throwable {
-        Assume.assumeThat("Test runs only with InfinispanUserSessionProvider",
-                userSessionProvider,
-                Matchers.is(InfinispanUserSessionProviderFactory.PROVIDER_ID));
-
         log.info("*********************************************");
         long start = System.currentTimeMillis();
 
@@ -182,10 +169,6 @@ public class ConcurrentLoginTest extends AbstractConcurrencyTest {
 
     @Test
     public void concurrentLoginMultipleUsers() throws Throwable {
-        Assume.assumeThat("Test runs only with InfinispanUserSessionProvider",
-                userSessionProvider,
-                Matchers.is(InfinispanUserSessionProviderFactory.PROVIDER_ID));
-
         log.info("*********************************************");
         long start = System.currentTimeMillis();
 
@@ -224,7 +207,6 @@ public class ConcurrentLoginTest extends AbstractConcurrencyTest {
 
             OAuthClient.AuthorizationEndpointResponse resp = oauth1.doLogin("test-user@localhost", "password");
             String code = resp.getCode();
-            String idTokenHint = oauth1.doAccessTokenRequest(code, "password").getIdToken();
             Assert.assertNotNull(code);
             String codeURL = driver.getCurrentUrl();
 
@@ -250,11 +232,11 @@ public class ConcurrentLoginTest extends AbstractConcurrencyTest {
 
             run(DEFAULT_THREADS, DEFAULT_THREADS, codeToTokenTask);
 
-            oauth1.idTokenHint(idTokenHint).openLogout();
+            oauth1.openLogout();
 
             // Code should be successfully exchanged for the token at max once. In some cases (EG. Cross-DC) it may not be even successfully exchanged
-            Assert.assertThat(codeToTokenSuccessCount.get(), Matchers.lessThanOrEqualTo(0));
-            Assert.assertThat(codeToTokenErrorsCount.get(), Matchers.greaterThanOrEqualTo(DEFAULT_THREADS));
+            Assert.assertThat(codeToTokenSuccessCount.get(), Matchers.lessThanOrEqualTo(1));
+            Assert.assertThat(codeToTokenErrorsCount.get(), Matchers.greaterThanOrEqualTo(DEFAULT_THREADS - 1));
 
             log.infof("Iteration %d passed successfully", i);
         }

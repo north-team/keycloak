@@ -24,7 +24,6 @@ import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.protocol.saml.SamlPrincipalType;
-import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.util.XmlKeyInfoKeyNameTransformer;
 
 /**
@@ -35,7 +34,6 @@ public class SAMLIdentityProviderConfig extends IdentityProviderModel {
     public static final XmlKeyInfoKeyNameTransformer DEFAULT_XML_KEY_INFO_KEY_NAME_TRANSFORMER = XmlKeyInfoKeyNameTransformer.NONE;
 
     public static final String ENTITY_ID = "entityId";
-    public static final String IDP_ENTITY_ID = "idpEntityId";
     public static final String ADD_EXTENSIONS_ELEMENT_WITH_KEY_INFO = "addExtensionsElementWithKeyInfo";
     public static final String BACKCHANNEL_SUPPORTED = "backchannelSupported";
     public static final String ENCRYPTION_PUBLIC_KEY = "encryptionPublicKey";
@@ -60,9 +58,6 @@ public class SAMLIdentityProviderConfig extends IdentityProviderModel {
     public static final String AUTHN_CONTEXT_CLASS_REFS = "authnContextClassRefs";
     public static final String AUTHN_CONTEXT_DECL_REFS = "authnContextDeclRefs";
     public static final String SIGN_SP_METADATA = "signSpMetadata";
-    public static final String ALLOW_CREATE = "allowCreate";
-    public static final String ATTRIBUTE_CONSUMING_SERVICE_INDEX = "attributeConsumingServiceIndex";
-    public static final String ATTRIBUTE_CONSUMING_SERVICE_NAME = "attributeConsumingServiceName";
 
     public SAMLIdentityProviderConfig() {
     }
@@ -77,14 +72,6 @@ public class SAMLIdentityProviderConfig extends IdentityProviderModel {
 
     public void setEntityId(String entityId) {
         getConfig().put(ENTITY_ID, entityId);
-    }
-
-    public String getIdpEntityId() {
-        return getConfig().get(IDP_ENTITY_ID);
-    }
-
-    public void setIdpEntityId(String idpEntityId) {
-        getConfig().put(IDP_ENTITY_ID, idpEntityId);
     }
 
     public String getSingleSignOnServiceUrl() {
@@ -347,46 +334,6 @@ public class SAMLIdentityProviderConfig extends IdentityProviderModel {
     public void setSignSpMetadata(boolean signSpMetadata) {
         getConfig().put(SIGN_SP_METADATA, String.valueOf(signSpMetadata));
     }
-    
-    public boolean isAllowCreate() {
-        return Boolean.valueOf(getConfig().get(ALLOW_CREATE));
-    }
-
-    public void setAllowCreated(boolean allowCreate) {
-        getConfig().put(ALLOW_CREATE, String.valueOf(allowCreate));
-    }
-
-    public Integer getAttributeConsumingServiceIndex() {
-        Integer result = null;
-        String strAttributeConsumingServiceIndex = getConfig().get(ATTRIBUTE_CONSUMING_SERVICE_INDEX);
-        if (strAttributeConsumingServiceIndex != null && !strAttributeConsumingServiceIndex.isEmpty()) {
-            try {
-                result = Integer.parseInt(strAttributeConsumingServiceIndex);
-                if (result < 0) {
-                    result = null;
-                }
-            } catch (NumberFormatException e) {
-                // ignore it and use null
-            }
-        }
-        return result;
-    }
-
-    public void setAttributeConsumingServiceIndex(Integer attributeConsumingServiceIndex) {
-        if (attributeConsumingServiceIndex == null || attributeConsumingServiceIndex < 0) {
-            getConfig().remove(ATTRIBUTE_CONSUMING_SERVICE_INDEX);
-        } else {
-            getConfig().put(ATTRIBUTE_CONSUMING_SERVICE_INDEX, String.valueOf(attributeConsumingServiceIndex));
-        }
-    }
-
-    public void setAttributeConsumingServiceName(String attributeConsumingServiceName) {
-        getConfig().put(ATTRIBUTE_CONSUMING_SERVICE_NAME, attributeConsumingServiceName);
-    }
-
-    public String getAttributeConsumingServiceName() {
-        return getConfig().get(ATTRIBUTE_CONSUMING_SERVICE_NAME);
-    }
 
     @Override
     public void validate(RealmModel realm) {
@@ -394,9 +341,5 @@ public class SAMLIdentityProviderConfig extends IdentityProviderModel {
 
         checkUrl(sslRequired, getSingleLogoutServiceUrl(), SINGLE_LOGOUT_SERVICE_URL);
         checkUrl(sslRequired, getSingleSignOnServiceUrl(), SINGLE_SIGN_ON_SERVICE_URL);
-        //transient name id format is not accepted together with principaltype SubjectnameId
-        if (JBossSAMLURIConstants.NAMEID_FORMAT_TRANSIENT.get().equals(getNameIDPolicyFormat()) && SamlPrincipalType.SUBJECT == getPrincipalType())
-            throw new IllegalArgumentException("Can not have Transient NameID Policy Format together with SUBJECT Principal Type");
-        
     }
 }

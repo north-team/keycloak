@@ -32,7 +32,6 @@ import org.keycloak.representations.idm.authorization.JSPolicyRepresentation;
 import org.keycloak.representations.idm.authorization.PolicyRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
-import org.keycloak.representations.idm.authorization.RolePolicyRepresentation;
 
 import java.util.List;
 
@@ -53,7 +52,7 @@ public class AuthorizationTest extends AbstractAuthorizationTest {
 
         UserRepresentation serviceAccount = realm.users().search(ServiceAccountConstants.SERVICE_ACCOUNT_USER_PREFIX + resourceServer.getClientId()).get(0);
         Assert.assertNotNull(serviceAccount);
-        List<RoleRepresentation> serviceAccountRoles = realm.users().get(serviceAccount.getId()).roles().clientLevel(resourceServer.getId()).listEffective();
+        List<RoleRepresentation> serviceAccountRoles = realm.users().get(serviceAccount.getId()).roles().clientLevel(resourceServer.getId()).listAll();
         Assert.assertTrue(serviceAccountRoles.stream().anyMatch(roleRepresentation -> "uma_protection".equals(roleRepresentation.getName())));
 
         enableAuthorizationServices(false);
@@ -62,15 +61,15 @@ public class AuthorizationTest extends AbstractAuthorizationTest {
         serviceAccount = clientResource.getServiceAccountUser();
         Assert.assertNotNull(serviceAccount);
         realm = realmsResouce().realm(getRealmId());
-        serviceAccountRoles = realm.users().get(serviceAccount.getId()).roles().clientLevel(resourceServer.getId()).listEffective();
+        serviceAccountRoles = realm.users().get(serviceAccount.getId()).roles().clientLevel(resourceServer.getId()).listAll();
         Assert.assertTrue(serviceAccountRoles.stream().anyMatch(roleRepresentation -> "uma_protection".equals(roleRepresentation.getName())));
 
-        RolePolicyRepresentation policy = new RolePolicyRepresentation();
+        JSPolicyRepresentation policy = new JSPolicyRepresentation();
 
         policy.setName("should be removed");
-        policy.addRole("uma_authorization");
+        policy.setCode("");
 
-        clientResource.authorization().policies().role().create(policy);
+        clientResource.authorization().policies().js().create(policy);
 
         List<ResourceRepresentation> defaultResources = clientResource.authorization().resources().resources();
 
@@ -98,7 +97,7 @@ public class AuthorizationTest extends AbstractAuthorizationTest {
 
         serviceAccount = clientResource.getServiceAccountUser();
         Assert.assertNotNull(serviceAccount);
-        serviceAccountRoles = realm.users().get(serviceAccount.getId()).roles().clientLevel(resourceServer.getId()).listEffective();
+        serviceAccountRoles = realm.users().get(serviceAccount.getId()).roles().clientLevel(resourceServer.getId()).listAll();
         Assert.assertTrue(serviceAccountRoles.stream().anyMatch(roleRepresentation -> "uma_protection".equals(roleRepresentation.getName())));
     }
 

@@ -17,6 +17,8 @@
 
 package org.keycloak.common.util;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -27,11 +29,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.RSAPublicKeySpec;
-
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-
-import org.keycloak.common.crypto.CryptoIntegration;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -49,7 +46,7 @@ public class KeyUtils {
 
     public static KeyPair generateRsaKeyPair(int keysize) {
         try {
-            KeyPairGenerator generator = CryptoIntegration.getProvider().getKeyPairGen("RSA"); 
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(keysize);
             KeyPair keyPair = generator.generateKeyPair();
             return keyPair;

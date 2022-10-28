@@ -13,7 +13,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
-import java.util.List;
 
 import static org.keycloak.testsuite.admin.ApiUtil.findClientByClientId;
 import static org.keycloak.testsuite.admin.ApiUtil.findProtocolMapperByName;
@@ -158,34 +157,6 @@ public class ClientManager {
             for (String redirectUri : redirectUris) {
                 if (app.getRedirectUris() != null) {
                     app.getRedirectUris().remove(redirectUri);
-                }
-            }
-            clientResource.update(app);
-        }
-
-        public void setPostLogoutRedirectUri(List<String> postLogoutRedirectUris) {
-            ClientRepresentation app = clientResource.toRepresentation();
-            OIDCAdvancedConfigWrapper.fromClientRepresentation(app).setPostLogoutRedirectUris(postLogoutRedirectUris);
-            clientResource.update(app);
-        }
-
-        public ClientManagerBuilder addWebOrigins(String... webOrigins) {
-            ClientRepresentation app = clientResource.toRepresentation();
-            if (app.getWebOrigins() == null) {
-                app.setWebOrigins(new LinkedList<String>());
-            }
-            for (String webOrigin : webOrigins) {
-                app.getWebOrigins().add(webOrigin);
-            }
-            clientResource.update(app);
-            return this;
-        }
-
-        public void removeWebOrigins(String... webOrigins) {
-            ClientRepresentation app = clientResource.toRepresentation();
-            for (String webOrigin : webOrigins) {
-                if (app.getWebOrigins() != null) {
-                    app.getWebOrigins().remove(webOrigin);
                 }
             }
             clientResource.update(app);

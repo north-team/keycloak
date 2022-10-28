@@ -44,9 +44,6 @@ public class LoginPasswordResetPage extends LanguageComboboxAwarePage {
     @FindBy(partialLinkText = "Back to Login")
     private WebElement backToLogin;
 
-    @FindBy(id = "kc-info-wrapper")
-    private WebElement infoWrapper;
-
     public void changePassword() {
         submitButton.click();
     }
@@ -94,11 +91,4 @@ public class LoginPasswordResetPage extends LanguageComboboxAwarePage {
         backToLogin.click();
     }
 
-    public String getInfoMessage() {
-        try {
-            return UIUtils.getTextFromElement(infoWrapper);
-        } catch (NoSuchElementException e) {
-            return null;
-        }
-    }
 }

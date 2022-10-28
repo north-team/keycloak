@@ -18,11 +18,11 @@
 
 package org.keycloak.models.sessions.infinispan.entities.wildfly;
 
-import org.keycloak.models.sessions.infinispan.entities.SingleUseObjectValueEntity;
+import org.keycloak.models.sessions.infinispan.entities.ActionTokenValueEntity;
 
-public class ActionTokenValueEntityWFExternalizer extends InfinispanExternalizerAdapter<SingleUseObjectValueEntity> {
+public class ActionTokenValueEntityWFExternalizer extends InfinispanExternalizerAdapter<ActionTokenValueEntity> {
 
     public ActionTokenValueEntityWFExternalizer() {
-        super(SingleUseObjectValueEntity.class, new SingleUseObjectValueEntity.ExternalizerImpl());
+        super(ActionTokenValueEntity.class, new ActionTokenValueEntity.ExternalizerImpl());
     }
 }

@@ -60,11 +60,13 @@ import org.keycloak.services.clientregistration.policy.impl.ProtocolMappersClien
 import org.keycloak.services.clientregistration.policy.impl.TrustedHostClientRegistrationPolicyFactory;
 import org.keycloak.testsuite.Assert;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.util.JsonSerialization;
 
 import javax.ws.rs.core.Response;
 
 import static org.junit.Assert.assertTrue;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -176,6 +178,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testAnonCreateWithTrustedHost() throws Exception {
         // Failed to create client (untrusted host)
         OIDCClientRepresentation client = createRepOidc("http://root", "http://redirect");
@@ -200,6 +203,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testAnonUpdateWithTrustedHost() throws Exception {
         setTrustedHost("localhost");
         OIDCClientRepresentation client = create();
@@ -241,6 +245,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testAnonConsentRequired() throws Exception {
         setTrustedHost("localhost");
         OIDCClientRepresentation client = create();
@@ -261,6 +266,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testAnonFullScopeAllowed() throws Exception {
         setTrustedHost("localhost");
         OIDCClientRepresentation client = create();
@@ -281,6 +287,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testClientDisabledPolicy() throws Exception {
         setTrustedHost("localhost");
 
@@ -293,7 +300,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
         // Add client-disabled policy
         ComponentRepresentation rep = new ComponentRepresentation();
         rep.setName("Clients disabled");
-        rep.setParentId(adminClient.realm(REALM_NAME).toRepresentation().getId());
+        rep.setParentId(REALM_NAME);
         rep.setProviderId(ClientDisabledClientRegistrationPolicyFactory.PROVIDER_ID);
         rep.setProviderType(ClientRegistrationPolicy.class.getName());
         rep.setSubType(getPolicyAnon());
@@ -321,6 +328,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testMaxClientsPolicy() throws Exception {
         setTrustedHost("localhost");
 
@@ -374,14 +382,12 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
         // Add some clientScopes
         ClientScopeRepresentation clientScope = new ClientScopeRepresentation();
         clientScope.setName("foo");
-        clientScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
         Response response = realmResource().clientScopes().create(clientScope);
         String fooScopeId = ApiUtil.getCreatedId(response);
         response.close();
 
         clientScope = new ClientScopeRepresentation();
         clientScope.setName("bar");
-        clientScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
         response = realmResource().clientScopes().create(clientScope);
         String barScopeId = ApiUtil.getCreatedId(response);
         response.close();
@@ -423,13 +429,13 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testClientScopesPolicy() throws Exception {
         setTrustedHost("localhost");
 
         // Add some clientScope through Admin REST
         ClientScopeRepresentation clientScope = new ClientScopeRepresentation();
         clientScope.setName("foo");
-        clientScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
         Response response = realmResource().clientScopes().create(clientScope);
         String clientScopeId = ApiUtil.getCreatedId(response);
         response.close();
@@ -462,13 +468,13 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testClientScopesPolicyWithPermittedScope() throws Exception {
         setTrustedHost("localhost");
 
         // Add some clientScope through Admin REST
         ClientScopeRepresentation clientScope = new ClientScopeRepresentation();
         clientScope.setName("foo");
-        clientScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
         Response response = realmResource().clientScopes().create(clientScope);
         String clientScopeId = ApiUtil.getCreatedId(response);
         response.close();
@@ -496,6 +502,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
     // PROTOCOL MAPPERS
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testProtocolMappersCreate() throws Exception {
         setTrustedHost("localhost");
 
@@ -542,6 +549,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testProtocolMappersUpdate() throws Exception {
         setTrustedHost("localhost");
 
@@ -577,6 +585,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testProtocolMappersConsentRequired() throws Exception {
         setTrustedHost("localhost");
 
@@ -592,6 +601,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE) // We would need to do domain name -> ip address to set trusted host
     public void testProtocolMappersRemoveBuiltins() throws Exception {
         setTrustedHost("localhost");
 
@@ -628,8 +638,7 @@ public class ClientRegistrationPoliciesTest extends AbstractClientRegistrationTe
 
     private ComponentRepresentation findPolicyByProviderAndAuth(String providerId, String authType) {
         // Change the policy to avoid checking hosts
-        String parentId = realmResource().toRepresentation().getId();
-        List<ComponentRepresentation> reps = realmResource().components().query(parentId, ClientRegistrationPolicy.class.getName());
+        List<ComponentRepresentation> reps = realmResource().components().query(REALM_NAME, ClientRegistrationPolicy.class.getName());
         for (ComponentRepresentation rep : reps) {
             if (rep.getSubType().equals(authType) && rep.getProviderId().equals(providerId)) {
                 return rep;

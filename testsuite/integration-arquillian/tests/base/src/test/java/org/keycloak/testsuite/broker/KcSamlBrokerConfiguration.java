@@ -23,7 +23,6 @@ import org.keycloak.testsuite.util.ClientBuilder;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +64,6 @@ public class KcSamlBrokerConfiguration implements BrokerConfiguration {
         realm.setEnabled(true);
         realm.setRealm(REALM_CONS_NAME);
         realm.setResetPasswordAllowed(true);
-        realm.setEventsListeners(Arrays.asList("jboss-logging", "event-queue"));
 
         return realm;
     }
@@ -73,7 +71,7 @@ public class KcSamlBrokerConfiguration implements BrokerConfiguration {
     @Override
     public List<ClientRepresentation> createProviderClients() {
         String clientId = getIDPClientIdInProviderRealm();
-        return new LinkedList<>(Collections.singleton(createProviderClient(clientId)));
+        return Arrays.asList(createProviderClient(clientId));
     }
 
     private ClientRepresentation createProviderClient(String clientId) {

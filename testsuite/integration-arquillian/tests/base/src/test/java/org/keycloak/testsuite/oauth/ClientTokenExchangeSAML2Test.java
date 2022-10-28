@@ -53,6 +53,8 @@ import org.keycloak.services.resources.admin.permissions.AdminPermissions;
 import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.Assert;
 import org.keycloak.testsuite.AssertEvents;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.arquillian.annotation.UncaughtServerErrorExpected;
 import org.keycloak.testsuite.util.AdminClientUtil;
@@ -82,8 +84,8 @@ import static org.keycloak.testsuite.auth.page.AuthRealm.TEST;
 /**
  * @author <a href="mailto:h2-wada@nri.co.jp">Hiroyuki Wada</a>
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 @EnableFeature(value = Profile.Feature.TOKEN_EXCHANGE, skipRestart = true)
-@EnableFeature(value = Profile.Feature.ADMIN_FINE_GRAINED_AUTHZ, skipRestart = true)
 public class ClientTokenExchangeSAML2Test extends AbstractKeycloakTest {
 
     private static final String SAML_SIGNED_TARGET = "http://localhost:8080/saml-signed-assertion/";
@@ -193,7 +195,7 @@ public class ClientTokenExchangeSAML2Test extends AbstractKeycloakTest {
         assertNotNull(samlUnsignedAndUnencryptedTarget);
 
         ResourceServer server = management.realmResourceServer();
-        Policy clientPolicy = management.authz().getStoreFactory().getPolicyStore().create(server, clientRep);
+        Policy clientPolicy = management.authz().getStoreFactory().getPolicyStore().create(clientRep, server);
         management.clients().exchangeToPermission(samlSignedTarget).addAssociatedPolicy(clientPolicy);
         management.clients().exchangeToPermission(samlEncryptedTarget).addAssociatedPolicy(clientPolicy);
         management.clients().exchangeToPermission(samlSignedAndEncryptedTarget).addAssociatedPolicy(clientPolicy);
@@ -207,20 +209,20 @@ public class ClientTokenExchangeSAML2Test extends AbstractKeycloakTest {
         clientImpersonateRep.addClient(directPublic.getId());
         clientImpersonateRep.addClient(directNoSecret.getId());
         server = management.realmResourceServer();
-        Policy clientImpersonatePolicy = management.authz().getStoreFactory().getPolicyStore().create(server, clientImpersonateRep);
+        Policy clientImpersonatePolicy = management.authz().getStoreFactory().getPolicyStore().create(clientImpersonateRep, server);
         management.users().setPermissionsEnabled(true);
         management.users().adminImpersonatingPermission().addAssociatedPolicy(clientImpersonatePolicy);
         management.users().adminImpersonatingPermission().setDecisionStrategy(DecisionStrategy.AFFIRMATIVE);
 
         UserModel user = session.users().addUser(realm, "user");
         user.setEnabled(true);
-        user.credentialManager().updateCredential(UserCredentialModel.password("password"));
+        session.userCredentialManager().updateCredential(realm, user, UserCredentialModel.password("password"));
         user.grantRole(exampleRole);
         user.grantRole(impersonateRole);
 
         UserModel bad = session.users().addUser(realm, "bad-impersonator");
         bad.setEnabled(true);
-        bad.credentialManager().updateCredential(UserCredentialModel.password("password"));
+        session.userCredentialManager().updateCredential(realm, bad, UserCredentialModel.password("password"));
     }
 
     @Override
@@ -687,14 +689,14 @@ public class ClientTokenExchangeSAML2Test extends AbstractKeycloakTest {
         clientImpersonateRep.addClient(directExchanger.getId());
 
         ResourceServer server = management.realmResourceServer();
-        Policy clientImpersonatePolicy = management.authz().getStoreFactory().getPolicyStore().create(server, clientImpersonateRep);
+        Policy clientImpersonatePolicy = management.authz().getStoreFactory().getPolicyStore().create(clientImpersonateRep, server);
         management.users().setPermissionsEnabled(true);
         management.users().adminImpersonatingPermission().addAssociatedPolicy(clientImpersonatePolicy);
         management.users().adminImpersonatingPermission().setDecisionStrategy(DecisionStrategy.AFFIRMATIVE);
 
         UserModel impersonatedUser = session.users().addUser(realm, "impersonated-user");
         impersonatedUser.setEnabled(true);
-        impersonatedUser.credentialManager().updateCredential(UserCredentialModel.password("password"));
+        session.userCredentialManager().updateCredential(realm, impersonatedUser, UserCredentialModel.password("password"));
         impersonatedUser.grantRole(exampleRole);
     }
 

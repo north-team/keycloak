@@ -24,6 +24,7 @@ import org.keycloak.authentication.authenticators.browser.UsernameFormFactory;
 import org.keycloak.authentication.authenticators.browser.WebAuthnAuthenticatorFactory;
 import org.keycloak.authentication.authenticators.challenge.NoCookieFlowRedirectAuthenticatorFactory;
 import org.keycloak.authentication.authenticators.client.ClientIdAndSecretAuthenticator;
+import org.keycloak.common.Profile;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
@@ -31,6 +32,9 @@ import org.keycloak.representations.idm.AuthenticationExecutionRepresentation;
 import org.keycloak.representations.idm.AuthenticationFlowRepresentation;
 import org.keycloak.representations.idm.AuthenticatorConfigRepresentation;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
+import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.util.AdminEventPaths;
 import org.keycloak.testsuite.util.AssertAdminEvents;
 
@@ -55,7 +59,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         HashMap<String, String> params = new HashMap<>();
         params.put("newName", "new-browser-flow");
         Response response = authMgmtResource.copy("browser", params);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AdminEventPaths.authCopyFlowPath("browser"), params, ResourceType.AUTH_FLOW);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AdminEventPaths.authCopyFlowPath("browser"), params, ResourceType.AUTH_FLOW);
         try {
             Assert.assertEquals("Copy flow", 201, response.getStatus());
         } finally {
@@ -65,7 +69,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         // create Conditional OTP Form execution
         params.put("provider", "auth-conditional-otp-form");
         authMgmtResource.addExecution("new-browser-flow", params);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AdminEventPaths.authAddExecutionPath("new-browser-flow"), params, ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AdminEventPaths.authAddExecutionPath("new-browser-flow"), params, ResourceType.AUTH_EXECUTION);
 
         List<AuthenticationExecutionInfoRepresentation> executionReps = authMgmtResource.getExecutions("new-browser-flow");
         AuthenticationExecutionInfoRepresentation exec = findExecutionByProvider("auth-conditional-otp-form", executionReps);
@@ -124,7 +128,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         // copy built-in flow so we get a new editable flow
         params.put("newName", "Copy-of-browser");
         Response response = authMgmtResource.copy("browser", params);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AdminEventPaths.authCopyFlowPath("browser"), params, ResourceType.AUTH_FLOW);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AdminEventPaths.authCopyFlowPath("browser"), params, ResourceType.AUTH_FLOW);
         try {
             Assert.assertEquals("Copy flow", 201, response.getStatus());
         } finally {
@@ -143,7 +147,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         // add execution - should succeed
         params.put("provider", "idp-review-profile");
         authMgmtResource.addExecution("Copy-of-browser", params);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AdminEventPaths.authAddExecutionPath("Copy-of-browser"), params, ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AdminEventPaths.authAddExecutionPath("Copy-of-browser"), params, ResourceType.AUTH_EXECUTION);
 
         // check execution was added
         List<AuthenticationExecutionInfoRepresentation> executionReps = authMgmtResource.getExecutions("Copy-of-browser");
@@ -157,7 +161,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
 
         // remove execution
         authMgmtResource.removeExecution(exec.getId());
-        assertAdminEvents.assertEvent(testRealmId, OperationType.DELETE, AdminEventPaths.authExecutionPath(exec.getId()), ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.DELETE, AdminEventPaths.authExecutionPath(exec.getId()), ResourceType.AUTH_EXECUTION);
 
         // check execution was removed
         executionReps = authMgmtResource.getExecutions("Copy-of-browser");
@@ -168,7 +172,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
 
         // delete auth-cookie
         authMgmtResource.removeExecution(authCookieExec.getId());
-        assertAdminEvents.assertEvent(testRealmId, OperationType.DELETE, AdminEventPaths.authExecutionPath(authCookieExec.getId()), ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.DELETE, AdminEventPaths.authExecutionPath(authCookieExec.getId()), ResourceType.AUTH_EXECUTION);
 
         AuthenticationExecutionRepresentation rep = new AuthenticationExecutionRepresentation();
         rep.setPriority(10);
@@ -209,7 +213,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
 
         // add execution - should succeed
         response = authMgmtResource.addExecution(rep);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AssertAdminEvents.isExpectedPrefixFollowedByUuid(AdminEventPaths.authMgmtBasePath() + "/executions"), rep, ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AssertAdminEvents.isExpectedPrefixFollowedByUuid(AdminEventPaths.authMgmtBasePath() + "/executions"), rep, ResourceType.AUTH_EXECUTION);
         try {
             Assert.assertEquals("added execution", 201, response.getStatus());
         } finally {
@@ -238,7 +242,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         // switch from DISABLED to ALTERNATIVE
         exec.setRequirement(DISABLED);
         authMgmtResource.updateExecutions("browser", exec);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.UPDATE, AdminEventPaths.authUpdateExecutionPath("browser"), exec, ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.UPDATE, AdminEventPaths.authUpdateExecutionPath("browser"), exec, ResourceType.AUTH_EXECUTION);
 
         // make sure the change is visible
         executionReps = authMgmtResource.getExecutions("browser");
@@ -258,7 +262,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         Map<String, String> executionData = new HashMap<>();
         executionData.put("provider", ClientIdAndSecretAuthenticator.PROVIDER_ID);
         authMgmtResource.addExecution("new-client-flow", executionData);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AdminEventPaths.authAddExecutionPath("new-client-flow"), executionData, ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AdminEventPaths.authAddExecutionPath("new-client-flow"), executionData, ResourceType.AUTH_EXECUTION);
 
         // Check executions of not-existent flow - SHOULD FAIL
         try {
@@ -294,7 +298,7 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         // Update success
         executionRep.setRequirement(ALTERNATIVE);
         authMgmtResource.updateExecutions("new-client-flow", executionRep);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.UPDATE, AdminEventPaths.authUpdateExecutionPath("new-client-flow"), executionRep, ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.UPDATE, AdminEventPaths.authUpdateExecutionPath("new-client-flow"), executionRep, ResourceType.AUTH_EXECUTION);
 
         // Check updated
         executionRep = findExecutionByProvider(ClientIdAndSecretAuthenticator.PROVIDER_ID, authMgmtResource.getExecutions("new-client-flow"));
@@ -310,21 +314,23 @@ public class ExecutionTest extends AbstractAuthenticationTest {
 
         // Successfuly remove execution and flow
         authMgmtResource.removeExecution(executionRep.getId());
-        assertAdminEvents.assertEvent(testRealmId, OperationType.DELETE, AdminEventPaths.authExecutionPath(executionRep.getId()), ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.DELETE, AdminEventPaths.authExecutionPath(executionRep.getId()), ResourceType.AUTH_EXECUTION);
 
         AuthenticationFlowRepresentation rep = findFlowByAlias("new-client-flow", authMgmtResource.getFlows());
         authMgmtResource.deleteFlow(rep.getId());
-        assertAdminEvents.assertEvent(testRealmId, OperationType.DELETE, AdminEventPaths.authFlowPath(rep.getId()), ResourceType.AUTH_FLOW);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.DELETE, AdminEventPaths.authFlowPath(rep.getId()), ResourceType.AUTH_FLOW);
     }
 
     @Test
+    @EnableFeature(value = Profile.Feature.WEB_AUTHN, skipRestart = true, onlyForProduct = true)
+    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void testRequirementsInExecution() {
         HashMap<String, String> params = new HashMap<>();
         String newBrowserFlow = "new-exec-flow";
 
         params.put("newName", newBrowserFlow);
         try (Response response = authMgmtResource.copy("browser", params)) {
-            assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AdminEventPaths.authCopyFlowPath("browser"), params, ResourceType.AUTH_FLOW);
+            assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AdminEventPaths.authCopyFlowPath("browser"), params, ResourceType.AUTH_FLOW);
             Assert.assertEquals("Copy flow", 201, response.getStatus());
         }
 
@@ -335,13 +341,13 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         AuthenticationFlowRepresentation rep = findFlowByAlias(newBrowserFlow, authMgmtResource.getFlows());
         Assert.assertNotNull(rep);
         authMgmtResource.deleteFlow(rep.getId());
-        assertAdminEvents.assertEvent(testRealmId, OperationType.DELETE, AdminEventPaths.authFlowPath(rep.getId()), ResourceType.AUTH_FLOW);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.DELETE, AdminEventPaths.authFlowPath(rep.getId()), ResourceType.AUTH_FLOW);
     }
 
     private void addExecutionCheckReq(String flow, String providerID, HashMap<String, String> params, String expectedRequirement) {
         params.put("provider", providerID);
         authMgmtResource.addExecution(flow, params);
-        assertAdminEvents.assertEvent(testRealmId, OperationType.CREATE, AdminEventPaths.authAddExecutionPath(flow), params, ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.CREATE, AdminEventPaths.authAddExecutionPath(flow), params, ResourceType.AUTH_EXECUTION);
 
         List<AuthenticationExecutionInfoRepresentation> executionReps = authMgmtResource.getExecutions(flow);
         AuthenticationExecutionInfoRepresentation exec = findExecutionByProvider(providerID, executionReps);
@@ -350,6 +356,6 @@ public class ExecutionTest extends AbstractAuthenticationTest {
         Assert.assertEquals(expectedRequirement, exec.getRequirement());
 
         authMgmtResource.removeExecution(exec.getId());
-        assertAdminEvents.assertEvent(testRealmId, OperationType.DELETE, AdminEventPaths.authExecutionPath(exec.getId()), ResourceType.AUTH_EXECUTION);
+        assertAdminEvents.assertEvent(REALM_NAME, OperationType.DELETE, AdminEventPaths.authExecutionPath(exec.getId()), ResourceType.AUTH_EXECUTION);
     }
 }

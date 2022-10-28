@@ -15,4 +15,4 @@
 # limitations under the License.
 #
 #
-org.keycloak.quarkus.runtime.integration.web.VertxClientCertificateLookupFactory
+org.keycloak.provider.quarkus.VertxClientCertificateLookupFactory

@@ -41,13 +41,13 @@ import java.util.logging.Logger;
 public class CatalinaRequestAuthenticator extends RequestAuthenticator {
     private static final Logger log = Logger.getLogger(""+CatalinaRequestAuthenticator.class);
     protected Request request;
-    protected PrincipalFactory principalFactory;
+    protected GenericPrincipalFactory principalFactory;
 
     public CatalinaRequestAuthenticator(KeycloakDeployment deployment,
                                         AdapterTokenStore tokenStore,
                                         CatalinaHttpFacade facade,
                                         Request request,
-                                        PrincipalFactory principalFactory) {
+                                        GenericPrincipalFactory principalFactory) {
         super(facade, deployment, tokenStore, request.getConnector().getRedirectPort());
         this.request = request;
         this.principalFactory = principalFactory;

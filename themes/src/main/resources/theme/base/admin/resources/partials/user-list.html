@@ -18,7 +18,7 @@
                     </div>
                     <button id="viewAllUsers" class="btn btn-default" ng-click="query.search = null; firstPage()">{{:: 'view-all-users' | translate}}</button>
 
-                    <div class="pull-right" data-ng-show="(access.manageUsers || (serverInfo.featureEnabled('ADMIN_FINE_GRAINED_AUTHZ') && access.queryUsers))">
+                    <div class="pull-right" data-ng-show="access.manageUsers">
                         <button data-ng-click="unlockUsers()" class="btn btn-default">{{:: 'unlock-users' | translate}}</button>
                         <a id="createUser" class="btn btn-default" href="#/create/user/{{realm.realm}}">{{:: 'add-user' | translate}}</a>
                     </div>
@@ -37,7 +37,7 @@
         </thead>
         <tfoot data-ng-show="users && (users.length >= query.max || query.first > 0)">
         <tr>
-            <td colspan="{{access.impersonation == true ? '8' : '7'}}">
+            <td colspan="7">
                 <div class="table-nav">
                     <button data-ng-click="firstPage()" class="first" ng-disabled="query.first == 0">{{:: 'first-page' | translate}}</button>
                     <button data-ng-click="previousPage()" class="prev" ng-disabled="query.first == 0">{{:: 'previous-page' | translate}}</button>

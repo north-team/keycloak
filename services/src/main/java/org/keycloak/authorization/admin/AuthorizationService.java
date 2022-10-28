@@ -18,7 +18,6 @@
 
 package org.keycloak.authorization.admin;
 
-import javax.ws.rs.NotFoundException;
 import javax.ws.rs.Path;
 
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
@@ -44,20 +43,12 @@ public class AuthorizationService {
         this.client = client;
         this.authorization = session.getProvider(AuthorizationProvider.class);
         this.adminEvent = adminEvent;
-        this.resourceServer = this.authorization.getStoreFactory().getResourceServerStore().findByClient(this.client);
+        this.resourceServer = this.authorization.getStoreFactory().getResourceServerStore().findById(this.client.getId());
         this.auth = auth;
     }
 
     @Path("/resource-server")
-    public Object resourceServer() {
-        if (resourceServer == null) {
-            throw new NotFoundException();
-        }
-
-        return getResourceServerService();
-    }
-
-    public ResourceServerService getResourceServerService() {
+    public ResourceServerService resourceServer() {
         ResourceServerService resource = new ResourceServerService(this.authorization, this.resourceServer, this.client, this.auth, adminEvent);
 
         ResteasyProviderFactory.getInstance().injectProperties(resource);
@@ -66,12 +57,12 @@ public class AuthorizationService {
     }
 
     public void enable(boolean newClient) {
-        this.resourceServer = getResourceServerService().create(newClient);
+        this.resourceServer = resourceServer().create(newClient);
     }
 
     public void disable() {
         if (isEnabled()) {
-            getResourceServerService().delete();
+            resourceServer().delete();
         }
     }
 

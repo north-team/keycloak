@@ -20,39 +20,24 @@ package org.keycloak.testsuite.events;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
-import org.keycloak.events.EventStoreProvider;
 import org.keycloak.events.EventType;
 import org.keycloak.representations.idm.EventRepresentation;
-import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  * @author Stan Silvert ssilvert@redhat.com (C) 2016 Red Hat Inc.
  */
 public class EventStoreProviderTest extends AbstractEventsTest {
-
-    @Override
-    public void addTestRealms(List<RealmRepresentation> testRealms) {
-        super.addTestRealms(testRealms);
-        for (String realmId : new String[] {REALM_NAME_1, REALM_NAME_2}) {
-            RealmRepresentation adminRealmRep = new RealmRepresentation();
-            adminRealmRep.setId(realmId);
-            adminRealmRep.setRealm(realmId);
-            adminRealmRep.setEnabled(true);
-            adminRealmRep.setEventsEnabled(true);
-            adminRealmRep.setEventsExpiration(0);
-            testRealms.add(adminRealmRep);
-        }
-    }
 
     @After
     public void after() {
@@ -61,24 +46,24 @@ public class EventStoreProviderTest extends AbstractEventsTest {
 
     @Test
     public void save() {
-        testing().onEvent(create(EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
     }
 
     @Test
-     // This looks like some database issue, test should get events which are newer or equal to requested time, however it gets only newer events from remote server
+    @AuthServerContainerExclude(AuthServer.REMOTE) // This looks like some database issue, test should get events which are newer or equal to requested time, however it gets only newer events from remote server
     public void query() {
         long oldest = System.currentTimeMillis() - 30000;
         long newest = System.currentTimeMillis() + 30000;
 
-        testing().onEvent(create(EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(newest, EventType.REGISTER, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(newest, EventType.REGISTER, realmId, "clientId", "userId2", "127.0.0.1", "error"));
-        testing().onEvent(create(EventType.LOGIN, realmId2, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(oldest, EventType.LOGIN, realmId, "clientId2", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(EventType.LOGIN, realmId, "clientId", "userId2", "127.0.0.1", "error"));
+        testing().onEvent(create(EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(newest, EventType.REGISTER, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(newest, EventType.REGISTER, "realmId", "clientId", "userId2", "127.0.0.1", "error"));
+        testing().onEvent(create(EventType.LOGIN, "realmId2", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(oldest, EventType.LOGIN, "realmId", "clientId2", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(EventType.LOGIN, "realmId", "clientId", "userId2", "127.0.0.1", "error"));
 
         Assert.assertEquals(5, testing().queryEvents(null, null, "clientId", null, null, null, null, null, null).size());
-        Assert.assertEquals(5, testing().queryEvents(realmId, null, null, null, null, null, null, null, null).size());
+        Assert.assertEquals(5, testing().queryEvents("realmId", null, null, null, null, null, null, null, null).size());
         Assert.assertEquals(4, testing().queryEvents(null, toList(EventType.LOGIN), null, null, null, null, null, null, null).size());
         Assert.assertEquals(6, testing().queryEvents(null, toList(EventType.LOGIN, EventType.REGISTER), null, null, null, null, null, null, null).size());
         Assert.assertEquals(4, testing().queryEvents(null, null, null, "userId", null, null, null, null, null).size());
@@ -91,8 +76,8 @@ public class EventStoreProviderTest extends AbstractEventsTest {
         Assert.assertEquals(newest, testing().queryEvents(null, null, null, null, null, null, null, null, 1).get(0).getTime());
         Assert.assertEquals(oldest, testing().queryEvents(null, null, null, null, null, null, null, 5, 1).get(0).getTime());
 
-        testing().clearEventStore(realmId);
-        testing().clearEventStore(realmId2);
+        testing().clearEventStore("realmId");
+        testing().clearEventStore("realmId2");
 
         Assert.assertEquals(0, testing().queryEvents(null, null, null, null, null, null, null, null, null).size());
 
@@ -118,20 +103,20 @@ public class EventStoreProviderTest extends AbstractEventsTest {
             e.printStackTrace();
         }
 
-        testing().onEvent(create(date1, EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(date1, EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(date2, EventType.REGISTER, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(date2, EventType.REGISTER, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(date3, EventType.CODE_TO_TOKEN, realmId, "clientId", "userId2", "127.0.0.1", "error"));
-        testing().onEvent(create(date3, EventType.LOGOUT, realmId, "clientId", "userId2", "127.0.0.1", "error"));
-        testing().onEvent(create(date4, EventType.UPDATE_PROFILE, realmId2, "clientId2", "userId2", "127.0.0.1", "error"));
-        testing().onEvent(create(date4, EventType.UPDATE_EMAIL, realmId2, "clientId2", "userId2", "127.0.0.1", "error"));
+        testing().onEvent(create(date1, EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(date1, EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(date2, EventType.REGISTER, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(date2, EventType.REGISTER, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(date3, EventType.CODE_TO_TOKEN, "realmId", "clientId", "userId2", "127.0.0.1", "error"));
+        testing().onEvent(create(date3, EventType.LOGOUT, "realmId", "clientId", "userId2", "127.0.0.1", "error"));
+        testing().onEvent(create(date4, EventType.UPDATE_PROFILE, "realmId2", "clientId2", "userId2", "127.0.0.1", "error"));
+        testing().onEvent(create(date4, EventType.UPDATE_EMAIL, "realmId2", "clientId2", "userId2", "127.0.0.1", "error"));
 
         Assert.assertEquals(6, testing().queryEvents(null, null, "clientId", null, null, null, null, null, null).size());
         Assert.assertEquals(2, testing().queryEvents(null, null, "clientId2", null, null, null, null, null, null).size());
 
-        Assert.assertEquals(6, testing().queryEvents(realmId, null, null, null, null, null, null, null, null).size());
-        Assert.assertEquals(2, testing().queryEvents(realmId2, null, null, null, null, null, null, null, null).size());
+        Assert.assertEquals(6, testing().queryEvents("realmId", null, null, null, null, null, null, null, null).size());
+        Assert.assertEquals(2, testing().queryEvents("realmId2", null, null, null, null, null, null, null, null).size());
 
         Assert.assertEquals(4, testing().queryEvents(null, null, null, "userId", null, null, null, null, null).size());
         Assert.assertEquals(4, testing().queryEvents(null, null, null, "userId2", null, null, null, null, null).size());
@@ -164,22 +149,22 @@ public class EventStoreProviderTest extends AbstractEventsTest {
 
     @Test
     public void clear() {
-        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis() - 20000, EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, realmId2, "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 20000, EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, "realmId2", "clientId", "userId", "127.0.0.1", "error"));
 
-        testing().clearEventStore(realmId);
+        testing().clearEventStore("realmId");
 
         Assert.assertEquals(1, testing().queryEvents(null, null, null, null, null, null, null, null, null).size());
     }
 
     @Test
     public void lengthExceedLimit(){
-        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, realmId, StringUtils.repeat("clientId", 100), "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, StringUtils.repeat(realmId, 100), "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, realmId, "clientId", StringUtils.repeat("userId", 100), "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, "realmId", StringUtils.repeat("clientId", 100), "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, StringUtils.repeat("realmId", 100), "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, "realmId", "clientId", StringUtils.repeat("userId", 100), "127.0.0.1", "error"));
 
     }
 
@@ -190,42 +175,15 @@ public class EventStoreProviderTest extends AbstractEventsTest {
 
     @Test
     public void clearOld() {
-        Assume.assumeTrue("Map storage event store provider does not support changing expiration of existing events", keycloakUsingProviderWithId(EventStoreProvider.class, "jpa"));
-        testing().onEvent(create(System.currentTimeMillis() - 300000, EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis() - 200000, EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, realmId, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis() - 300000, EventType.LOGIN, realmId2, "clientId", "userId", "127.0.0.1", "error"));
-        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, realmId2, "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 20000, EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis(), EventType.LOGIN, "realmId", "clientId", "userId", "127.0.0.1", "error"));
+        testing().onEvent(create(System.currentTimeMillis() - 30000, EventType.LOGIN, "realmId2", "clientId", "userId", "127.0.0.1", "error"));
 
-        // Set expiration of events for realmId .
-        RealmRepresentation realm = realmsResouce().realm(REALM_NAME_1).toRepresentation();
-        realm.setEventsExpiration(100);
-        realmsResouce().realm(REALM_NAME_1).update(realm);
+        testing().clearEventStore("realmId", System.currentTimeMillis() - 10000);
 
-        // The first 2 events from realmId will be deleted
-        testing().clearExpiredEvents();
-        Assert.assertEquals(4, testing().queryEvents(null, null, null, null, null, null, null, null, null).size());
-
-        // Set expiration of events for realmId2 as well
-        RealmRepresentation realm2 = realmsResouce().realm(REALM_NAME_2).toRepresentation();
-        realm2.setEventsExpiration(100);
-        realmsResouce().realm(REALM_NAME_2).update(realm2);
-
-        // The first event from realmId2 will be deleted now
-        testing().clearExpiredEvents();
         Assert.assertEquals(3, testing().queryEvents(null, null, null, null, null, null, null, null, null).size());
-
-        // set time offset to the future. The remaining 2 events from realmId and 1 event from realmId2 should be expired now
-        setTimeOffset(150);
-        testing().clearExpiredEvents();
-        Assert.assertEquals(0, testing().queryEvents(null, null, null, null, null, null, null, null, null).size());
-
-        // Revert expirations
-        realm.setEventsExpiration(0);
-        realmsResouce().realm(REALM_NAME_1).update(realm);
-        realm2.setEventsExpiration(0);
-        realmsResouce().realm(REALM_NAME_2).update(realm2);
     }
 
     private EventRepresentation create(EventType event, String realmId, String clientId, String userId, String ipAddress, String error) {

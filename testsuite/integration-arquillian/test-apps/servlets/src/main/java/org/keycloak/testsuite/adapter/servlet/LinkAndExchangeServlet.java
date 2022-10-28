@@ -118,7 +118,7 @@ public class LinkAndExchangeServlet extends HttpServlet {
             String linkUrl = null;
             try {
                 AccessTokenResponse response = doTokenExchange(realm, tokenString, provider,  clientId, "password");
-                String error = response.getError();
+                String error = (String)response.getOtherClaims().get("error");
                 if (error != null) {
                     System.out.println("*** error : " + error);
                     System.out.println("*** link-url: " + response.getOtherClaims().get("account-link-url"));

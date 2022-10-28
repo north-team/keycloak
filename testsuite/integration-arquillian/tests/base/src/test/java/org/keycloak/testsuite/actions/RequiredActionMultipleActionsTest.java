@@ -94,19 +94,19 @@ public class RequiredActionMultipleActionsTest extends AbstractTestRealmKeycloak
     }
 
     public String updateProfile(String codeId) {
-        updateProfilePage.prepareUpdate().username("test-user@localhost").firstName("New first").lastName("New last")
-                .email("new@email.com").submit();
+        updateProfilePage.update("New first", "New last", "new@email.com", "test-user@localhost");
 
-        AssertEvents.ExpectedEvent expectedEvent = events.expectRequiredAction(EventType.UPDATE_PROFILE)
-                .detail(Details.UPDATED_FIRST_NAME, "New first")
-                .detail(Details.UPDATED_LAST_NAME, "New last")
+        AssertEvents.ExpectedEvent expectedEvent = events.expectRequiredAction(EventType.UPDATE_EMAIL)
                 .detail(Details.PREVIOUS_EMAIL, "test-user@localhost")
                 .detail(Details.UPDATED_EMAIL, "new@email.com");
-
         if (codeId != null) {
             expectedEvent.detail(Details.CODE_ID, codeId);
         }
-        return expectedEvent.assertEvent().getDetails().get(Details.CODE_ID);
+        codeId = expectedEvent.assertEvent().getDetails().get(Details.CODE_ID);
+        events.expectRequiredAction(EventType.UPDATE_PROFILE)
+                .detail(Details.CODE_ID, codeId)
+                .assertEvent();
+        return codeId;
     }
 
 }

@@ -73,10 +73,10 @@ public class ClientScopesClientRegistrationPolicy implements ClientRegistrationP
 
         // Allow scopes, which were already presented before
         if (requestedDefaultScopeNames != null) {
-            requestedDefaultScopeNames.removeAll(clientModel.getClientScopes(true).keySet());
+            requestedDefaultScopeNames.removeAll(clientModel.getClientScopes(true, false).keySet());
         }
         if (requestedOptionalScopeNames != null) {
-            requestedOptionalScopeNames.removeAll(clientModel.getClientScopes(false).keySet());
+            requestedOptionalScopeNames.removeAll(clientModel.getClientScopes(false, false).keySet());
         }
 
         List<String> allowedDefaultScopeNames = getAllowedScopeNames(realm, true);

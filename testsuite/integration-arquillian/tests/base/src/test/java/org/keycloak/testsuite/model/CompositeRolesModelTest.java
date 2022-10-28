@@ -29,6 +29,7 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.ModelTest;
 
 import java.util.HashSet;
@@ -37,10 +38,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
+
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
+@AuthServerContainerExclude(AuthServer.REMOTE)
 public class CompositeRolesModelTest extends AbstractTestRealmKeycloakTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -121,9 +125,9 @@ public class CompositeRolesModelTest extends AbstractTestRealmKeycloakTest {
 
         KeycloakModelUtils.runJobInTransaction(session.getKeycloakSessionFactory(), (KeycloakSession session5) -> {
 
-            RealmModel realm = session5.realms().getRealmByName("TestComposites");
+            RealmModel realm = session5.realms().getRealm("TestComposites");
 
-            Set<RoleModel> requestedRoles = getRequestedRoles(realm.getClientByClientId("APP_COMPOSITE_APPLICATION"), session.users().getUserByUsername(realm, "APP_COMPOSITE_USER"));
+            Set<RoleModel> requestedRoles = getRequestedRoles(realm.getClientByClientId("APP_COMPOSITE_APPLICATION"), session.users().getUserByUsername("APP_COMPOSITE_USER", realm));
 
             Assert.assertEquals(5, requestedRoles.size());
             assertContains(realm, "APP_COMPOSITE_APPLICATION", "APP_COMPOSITE_ROLE", requestedRoles);
@@ -132,25 +136,25 @@ public class CompositeRolesModelTest extends AbstractTestRealmKeycloakTest {
             assertContains(realm, "APP_ROLE_APPLICATION", "APP_ROLE_1", requestedRoles);
             assertContains(realm, "realm", "REALM_ROLE_1", requestedRoles);
 
-            Set<RoleModel> requestedRoles2 = getRequestedRoles(realm.getClientByClientId("APP_COMPOSITE_APPLICATION"), session5.users().getUserByUsername(realm, "REALM_APP_COMPOSITE_USER"));
+            Set<RoleModel> requestedRoles2 = getRequestedRoles(realm.getClientByClientId("APP_COMPOSITE_APPLICATION"), session5.users().getUserByUsername("REALM_APP_COMPOSITE_USER", realm));
             Assert.assertEquals(4, requestedRoles2.size());
             assertContains(realm, "APP_ROLE_APPLICATION", "APP_ROLE_1", requestedRoles2);
 
-            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_COMPOSITE_1_APPLICATION"), session5.users().getUserByUsername(realm, "REALM_COMPOSITE_1_USER"));
+            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_COMPOSITE_1_APPLICATION"), session5.users().getUserByUsername("REALM_COMPOSITE_1_USER", realm));
             Assert.assertEquals(1, requestedRoles.size());
             assertContains(realm, "realm", "REALM_COMPOSITE_1", requestedRoles);
 
-            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_COMPOSITE_2_APPLICATION"), session5.users().getUserByUsername(realm, "REALM_COMPOSITE_1_USER"));
+            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_COMPOSITE_2_APPLICATION"), session5.users().getUserByUsername("REALM_COMPOSITE_1_USER", realm));
             Assert.assertEquals(3, requestedRoles.size());
             assertContains(realm, "realm", "REALM_COMPOSITE_1", requestedRoles);
             assertContains(realm, "realm", "REALM_COMPOSITE_CHILD", requestedRoles);
             assertContains(realm, "realm", "REALM_ROLE_4", requestedRoles);
 
-            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_ROLE_1_APPLICATION"), session5.users().getUserByUsername(realm, "REALM_COMPOSITE_1_USER"));
+            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_ROLE_1_APPLICATION"), session5.users().getUserByUsername("REALM_COMPOSITE_1_USER", realm));
             Assert.assertEquals(1, requestedRoles.size());
             assertContains(realm, "realm", "REALM_ROLE_1", requestedRoles);
 
-            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_COMPOSITE_1_APPLICATION"), session5.users().getUserByUsername(realm, "REALM_ROLE_1_USER"));
+            requestedRoles = getRequestedRoles(realm.getClientByClientId("REALM_COMPOSITE_1_APPLICATION"), session5.users().getUserByUsername("REALM_ROLE_1_USER", realm));
             Assert.assertEquals(1, requestedRoles.size());
             assertContains(realm, "realm", "REALM_ROLE_1", requestedRoles);
         });
@@ -162,6 +166,7 @@ public class CompositeRolesModelTest extends AbstractTestRealmKeycloakTest {
     public void configureTestRealm(RealmRepresentation testRealm) {
         log.infof("testcomposites imported");
         RealmRepresentation newRealm = loadJson(getClass().getResourceAsStream("/model/testcomposites2.json"), RealmRepresentation.class);
+        newRealm.setId("TestComposites");
         adminClient.realms().create(newRealm);
 
     }

@@ -18,6 +18,7 @@ package org.keycloak.protocol.oidc.endpoints;
 
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.HttpRequest;
+import org.keycloak.OAuthErrorException;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
@@ -28,9 +29,11 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.protocol.oidc.AccessTokenIntrospectionProviderFactory;
 import org.keycloak.protocol.oidc.TokenIntrospectionProvider;
 import org.keycloak.protocol.oidc.utils.AuthorizeClientUtil;
+import org.keycloak.services.CorsErrorResponseException;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.clientpolicy.ClientPolicyException;
-import org.keycloak.services.clientpolicy.context.TokenIntrospectContext;
+import org.keycloak.services.clientpolicy.DefaultClientPolicyManager;
+import org.keycloak.services.clientpolicy.TokenIntrospectContext;
 
 import javax.ws.rs.POST;
 import javax.ws.rs.core.Context;
@@ -78,9 +81,6 @@ public class TokenIntrospectionEndpoint {
         authorizeClient();
 
         MultivaluedMap<String, String> formParams = request.getDecodedFormParameters();
-
-        checkParameterDuplicated(formParams);
-
         String tokenTypeHint = formParams.getFirst(PARAM_TOKEN_TYPE_HINT);
 
         if (tokenTypeHint == null) {
@@ -121,7 +121,7 @@ public class TokenIntrospectionEndpoint {
 
     private void authorizeClient() {
         try {
-            ClientModel client = AuthorizeClientUtil.authorizeClient(session, event, null).getClient();
+            ClientModel client = AuthorizeClientUtil.authorizeClient(session, event).getClient();
 
             this.event.client(client);
 
@@ -145,15 +145,6 @@ public class TokenIntrospectionEndpoint {
     private void checkRealm() {
         if (!realm.isEnabled()) {
             throw new ErrorResponseException("access_denied", "Realm not enabled", Status.FORBIDDEN);
-        }
-    }
-
-
-    private void checkParameterDuplicated(MultivaluedMap<String, String> formParams) {
-        for (String key : formParams.keySet()) {
-            if (formParams.get(key).size() != 1) {
-                throw throwErrorResponseException(Errors.INVALID_REQUEST, "duplicated parameter", Status.BAD_REQUEST);
-            }
         }
     }
 

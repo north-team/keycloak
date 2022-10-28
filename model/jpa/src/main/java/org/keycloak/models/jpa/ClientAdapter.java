@@ -26,20 +26,25 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.jpa.entities.ClientAttributeEntity;
 import org.keycloak.models.jpa.entities.ClientEntity;
+import org.keycloak.models.jpa.entities.ClientScopeClientMappingEntity;
 import org.keycloak.models.jpa.entities.ProtocolMapperEntity;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.RoleUtils;
+import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 
 import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
 
 import java.security.MessageDigest;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -261,10 +266,8 @@ public class ClientAdapter implements ClientModel, JpaModel<ClientEntity> {
 
     @Override
     public void setProtocol(String protocol) {
-        if (!Objects.equals(entity.getProtocol(), protocol)) {
-            entity.setProtocol(protocol);
-            session.getKeycloakSessionFactory().publish((ClientModel.ClientProtocolUpdatedEvent) () -> ClientAdapter.this);
-        }
+        entity.setProtocol(protocol);
+
     }
 
     @Override
@@ -292,24 +295,11 @@ public class ClientAdapter implements ClientModel, JpaModel<ClientEntity> {
 
     @Override
     public void setAttribute(String name, String value) {
-        boolean valueUndefined = value == null || "".equals(value.trim());
-
         for (ClientAttributeEntity attr : entity.getAttributes()) {
             if (attr.getName().equals(name)) {
-                // clean up, so that attributes previously set with either a empty or null value are removed
-                // we should remove this in future versions so that new clients never store empty/null attributes
-                if (valueUndefined) {
-                    removeAttribute(name);
-                } else {
-                    attr.setValue(value);
-                }
+                attr.setValue(value);
                 return;
             }
-        }
-
-        // do not create attributes if empty or null
-        if (valueUndefined) {
-            return;
         }
 
         ClientAttributeEntity attr = new ClientAttributeEntity();
@@ -348,22 +338,57 @@ public class ClientAdapter implements ClientModel, JpaModel<ClientEntity> {
 
     @Override
     public void addClientScope(ClientScopeModel clientScope, boolean defaultScope) {
-        addClientScopes(Collections.singleton(clientScope), defaultScope);
+        if (getClientScopes(defaultScope, false).containsKey(clientScope.getName())) return;
+
+        persist(clientScope, defaultScope);
     }
 
     @Override
     public void addClientScopes(Set<ClientScopeModel> clientScopes, boolean defaultScope) {
-        session.clients().addClientScopes(getRealm(), this, clientScopes, defaultScope);
+        Map<String, ClientScopeModel> existingClientScopes = getClientScopes(defaultScope, false);
+        clientScopes.stream()
+                .filter(clientScope -> !existingClientScopes.containsKey(clientScope.getName()))
+                .forEach(clientScope -> persist(clientScope, defaultScope));
+    }
+
+    private void persist(ClientScopeModel clientScope, boolean defaultScope) {
+        ClientScopeClientMappingEntity entity = new ClientScopeClientMappingEntity();
+        entity.setClientScope(ClientScopeAdapter.toClientScopeEntity(clientScope, em));
+        entity.setClient(getEntity());
+        entity.setDefaultScope(defaultScope);
+        em.persist(entity);
+        em.flush();
+        em.detach(entity);
     }
 
     @Override
     public void removeClientScope(ClientScopeModel clientScope) {
-        session.clients().removeClientScope(getRealm(), this, clientScope);
+        int numRemoved = em.createNamedQuery("deleteClientScopeClientMapping")
+                .setParameter("clientScope", ClientScopeAdapter.toClientScopeEntity(clientScope, em))
+                .setParameter("client", getEntity())
+                .executeUpdate();
+        em.flush();
     }
 
     @Override
-    public Map<String, ClientScopeModel> getClientScopes(boolean defaultScope) {
-        return session.clients().getClientScopes(getRealm(), this, defaultScope);
+    public Map<String, ClientScopeModel> getClientScopes(boolean defaultScope, boolean filterByProtocol) {
+        TypedQuery<String> query = em.createNamedQuery("clientScopeClientMappingIdsByClient", String.class);
+        query.setParameter("client", getEntity());
+        query.setParameter("defaultScope", defaultScope);
+        List<String> ids = query.getResultList();
+
+        // Defaults to openid-connect
+        String clientProtocol = getProtocol() == null ? OIDCLoginProtocol.LOGIN_PROTOCOL : getProtocol();
+
+        Map<String, ClientScopeModel> clientScopes = new HashMap<>();
+        for (String clientScopeId : ids) {
+            ClientScopeModel clientScope = realm.getClientScopeById(clientScopeId);
+            if (clientScope == null) continue;
+            if (!filterByProtocol || clientScope.getProtocol().equals(clientProtocol)) {
+                clientScopes.put(clientScope.getName(), clientScope);
+            }
+        }
+        return clientScopes;
     }
 
 
@@ -656,35 +681,50 @@ public class ClientAdapter implements ClientModel, JpaModel<ClientEntity> {
     }
 
     @Override
-    @Deprecated
     public Stream<String> getDefaultRolesStream() {
-        return realm.getDefaultRole().getCompositesStream().filter(this::isClientRole).map(RoleModel::getName);
+        return entity.getDefaultRolesIds().stream().map(this::getRoleNameById);
     }
 
-    private boolean isClientRole(RoleModel role) {
-        return role.isClientRole() && Objects.equals(role.getContainerId(), this.getId());
+    private String getRoleNameById(String id) {
+        RoleModel roleById = session.roles().getRoleById(realm, id);
+        if (roleById == null) {
+            return null;
+        }
+        return roleById.getName();
     }
 
     @Override
-    @Deprecated
     public void addDefaultRole(String name) {
-        realm.getDefaultRole().addCompositeRole(getOrAddRoleId(name));
+        if (entity.getDefaultRolesIds().add(getOrAddRoleId(name))) {
+            em.flush();
+        }
     }
 
-    private RoleModel getOrAddRoleId(String name) {
+    private String getOrAddRoleId(String name) {
         RoleModel role = getRole(name);
         if (role == null) {
             role = addRole(name);
         }
-        return role;
+        return role.getId();
     }
 
     @Override
-    @Deprecated
+    public void updateDefaultRoles(String... defaultRoles) {
+        Set<String> newDefaultRolesIds = Arrays.stream(defaultRoles)
+                .map(this::getOrAddRoleId)
+                .collect(Collectors.toSet());
+        entity.getDefaultRolesIds().retainAll(newDefaultRolesIds);
+        entity.getDefaultRolesIds().addAll(newDefaultRolesIds);
+        em.flush();
+    }
+
+    @Override
     public void removeDefaultRoles(String... defaultRoles) {
-        for (String defaultRole : defaultRoles) {
-            realm.getDefaultRole().removeCompositeRole(getRole(defaultRole));
-        }
+        Arrays.stream(defaultRoles)
+                .map(this::getRole)
+                .filter(Objects::nonNull)
+                .forEach(role -> entity.getDefaultRolesIds().remove(role.getId()));
+        em.flush();
     }
 
     @Override
@@ -730,9 +770,8 @@ public class ClientAdapter implements ClientModel, JpaModel<ClientEntity> {
         return getId().hashCode();
     }
 
-    @Override
     public String toString() {
-        return String.format("%s@%08x", getClientId(), System.identityHashCode(this));
+        return getClientId();
     }
 
 }

@@ -20,8 +20,6 @@ import org.keycloak.provider.Provider;
 import org.keycloak.storage.client.ClientLookupProvider;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,6 +32,19 @@ import java.util.stream.Stream;
 public interface ClientProvider extends ClientLookupProvider, Provider {
 
     /**
+     * Returns the clients of the given realm.
+     * @deprecated use the stream variant instead
+     * @param realm Realm.
+     * @param firstResult First result to return. Ignored if negative or {@code null}.
+     * @param maxResults Maximum number of results to return. Ignored if negative or {@code null}.
+     * @return List of the clients. Never returns {@code null}.
+     */
+    @Deprecated
+    default List<ClientModel> getClients(RealmModel realm, Integer firstResult, Integer maxResults) {
+        return getClientsStream(realm, firstResult, maxResults).collect(Collectors.toList());
+    }
+
+    /**
      * Returns the clients of the given realm as a stream.
      * @param realm Realm.
      * @param firstResult First result to return. Ignored if negative or {@code null}.
@@ -41,6 +52,18 @@ public interface ClientProvider extends ClientLookupProvider, Provider {
      * @return Stream of the clients. Never returns {@code null}.
      */
     Stream<ClientModel> getClientsStream(RealmModel realm, Integer firstResult, Integer maxResults);
+
+    /**
+     * Returns all the clients of the given realm.
+     * @deprecated use the stream variant instead
+     * Effectively the same as the call {@code getClients(realm, null, null)}.
+     * @param realm Realm.
+     * @return List of the clients. Never returns {@code null}.
+     */
+    @Deprecated
+    default List<ClientModel> getClients(RealmModel realm) {
+        return this.getClientsStream(realm, null, null).collect(Collectors.toList());
+    }
 
     /**
      * Returns all the clients of the given realm as a stream.
@@ -84,11 +107,31 @@ public interface ClientProvider extends ClientLookupProvider, Provider {
     long getClientsCount(RealmModel realm);
 
     /**
+     * Returns a list of clients that are expected to always show up in account console.
+     * @deprecated use the stream variant instead
+     * @param realm Realm owning the clients.
+     * @return List of the clients. Never returns {@code null}.
+     */
+    @Deprecated
+    default List<ClientModel> getAlwaysDisplayInConsoleClients(RealmModel realm) {
+        return getAlwaysDisplayInConsoleClientsStream(realm).collect(Collectors.toList());
+    }
+
+    /**
      * Returns a stream of clients that are expected to always show up in account console.
      * @param realm Realm owning the clients.
      * @return Stream of the clients. Never returns {@code null}.
      */
     Stream<ClientModel> getAlwaysDisplayInConsoleClientsStream(RealmModel realm);
+
+    /**
+     * Removes given client from the given realm.
+     * @param id Internal ID of the client
+     * @param realm Realm.
+     * @return {@code true} if the client existed and has been removed, {@code false} otherwise.
+     * @deprecated Use {@link #removeClient(RealmModel, String)} instead.
+     */
+    default boolean removeClient(String id, RealmModel realm) { return this.removeClient(realm, id); }
 
     /**
      * Removes given client from the given realm.
@@ -103,33 +146,4 @@ public interface ClientProvider extends ClientLookupProvider, Provider {
      * @param realm Realm.
      */
     void removeClients(RealmModel realm);
-
-    /**
-     * Assign clientScopes to the client. Add as default scopes (if parameter 'defaultScope' is true) 
-     * or optional scopes (if parameter 'defaultScope' is false)
-     * 
-     * @param realm Realm.
-     * @param client Client.
-     * @param clientScopes to be assigned
-     * @param defaultScope if true the scopes are assigned as default, or optional in case of false 
-     */
-    void addClientScopes(RealmModel realm, ClientModel client, Set<ClientScopeModel> clientScopes, boolean defaultScope);
-
-    /**
-     * Unassign clientScope from the client. 
-     * 
-     * @param realm Realm.
-     * @param client Client.
-     * @param clientScope to be unassigned
-     */
-    void removeClientScope(RealmModel realm, ClientModel client, ClientScopeModel clientScope);
-
-    /**
-     * Returns a map of (rootUrl, {validRedirectUris}) for all enabled clients.
-     * @param realm
-     * @return
-     * @deprecated Do not use, this is only to support a deprecated logout endpoint and will vanish with it's removal
-     */
-    @Deprecated
-    Map<ClientModel, Set<String>> getAllRedirectUrisOfEnabledClients(RealmModel realm);
 }

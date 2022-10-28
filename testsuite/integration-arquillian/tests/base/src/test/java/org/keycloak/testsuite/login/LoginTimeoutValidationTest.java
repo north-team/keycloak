@@ -31,8 +31,12 @@ import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.services.managers.ClientSessionCode;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.ModelTest;
 
+import static org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer.REMOTE;
+
+@AuthServerContainerExclude(REMOTE)
 public class LoginTimeoutValidationTest extends AbstractTestRealmKeycloakTest {
 
     @Override
@@ -45,6 +49,7 @@ public class LoginTimeoutValidationTest extends AbstractTestRealmKeycloakTest {
     public  void before() {
         testingClient.server().run( session -> {
             RealmModel realm = session.realms().getRealmByName("test");
+            realm = session.realms().getRealm("test");
             session.users().addUser(realm, "user1");
         });
     }
@@ -55,7 +60,7 @@ public class LoginTimeoutValidationTest extends AbstractTestRealmKeycloakTest {
         testingClient.server().run( session -> {
             RealmModel realm = session.realms().getRealmByName("test");
             session.sessions().removeUserSessions(realm);
-            UserModel user1 = session.users().getUserByUsername(realm, "user1");
+            UserModel user1 = session.users().getUserByUsername("user1", realm);
 
             UserManager um = new UserManager(session);
             if (user1 != null) {
@@ -73,7 +78,7 @@ public class LoginTimeoutValidationTest extends AbstractTestRealmKeycloakTest {
         UserSessionModel userSession =
             keycloakSession.sessions().createUserSession(
                                                  realm,
-                                                 keycloakSession.users().getUserByUsername(realm, "user1"),
+                                                 keycloakSession.users().getUserByUsername("user1", realm),
                                                  "user1", "127.0.0.1", "form", true, null, null
                                                  );
         ClientModel client = realm.getClientByClientId("account");

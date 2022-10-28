@@ -18,6 +18,7 @@
 
 package org.keycloak.cluster.infinispan;
 
+import java.awt.print.Book;
 import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,7 +40,7 @@ import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
 import org.keycloak.models.sessions.infinispan.changes.SessionEntityWrapper;
 import org.keycloak.models.sessions.infinispan.entities.AuthenticatedClientSessionEntity;
 import org.keycloak.models.sessions.infinispan.remotestore.RemoteCacheSessionsLoaderContext;
-import org.keycloak.connections.infinispan.InfinispanUtil;
+import org.keycloak.models.sessions.infinispan.util.InfinispanUtil;
 
 import static org.infinispan.client.hotrod.impl.Util.await;
 

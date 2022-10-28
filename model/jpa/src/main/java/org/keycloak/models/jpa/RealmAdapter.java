@@ -21,7 +21,6 @@ import org.keycloak.Config;
 import org.jboss.logging.Logger;
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.common.util.MultivaluedHashMap;
-import org.keycloak.common.util.Time;
 import org.keycloak.component.ComponentFactory;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.models.*;
@@ -34,6 +33,7 @@ import javax.persistence.LockModeType;
 import javax.persistence.TypedQuery;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.nonNull;
@@ -43,7 +43,7 @@ import static org.keycloak.utils.StreamsUtil.closing;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
+public class RealmAdapter implements RealmModel, JpaModel<RealmEntity> {
     protected static final Logger logger = Logger.getLogger(RealmAdapter.class);
     protected RealmEntity realm;
     protected EntityManager em;
@@ -187,6 +187,21 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
     }
 
     @Override
+    public void setAttribute(String name, Boolean value) {
+        setAttribute(name, value.toString());
+    }
+
+    @Override
+    public void setAttribute(String name, Integer value) {
+        setAttribute(name, value.toString());
+    }
+
+    @Override
+    public void setAttribute(String name, Long value) {
+        setAttribute(name, value.toString());
+    }
+
+    @Override
     public void removeAttribute(String name) {
         Iterator<RealmAttributeEntity> it = realm.getAttributes().iterator();
         while (it.hasNext()) {
@@ -206,6 +221,27 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
             }
         }
         return null;
+    }
+
+    @Override
+    public Integer getAttribute(String name, Integer defaultValue) {
+        String v = getAttribute(name);
+        return v != null ? Integer.parseInt(v) : defaultValue;
+
+    }
+
+    @Override
+    public Long getAttribute(String name, Long defaultValue) {
+        String v = getAttribute(name);
+        return v != null ? Long.parseLong(v) : defaultValue;
+
+    }
+
+    @Override
+    public Boolean getAttribute(String name, Boolean defaultValue) {
+        String v = getAttribute(name);
+        return v != null ? Boolean.parseBoolean(v) : defaultValue;
+
     }
 
     @Override
@@ -553,21 +589,6 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
     }
 
     @Override
-    public OAuth2DeviceConfig getOAuth2DeviceConfig() {
-        return new OAuth2DeviceConfig(this);
-    }
-
-    @Override
-    public CibaConfig getCibaPolicy() {
-        return new CibaConfig(this);
-    }
-
-    @Override
-    public ParConfig getParPolicy() {
-        return new ParConfig(this);
-    }
-
-    @Override
     public Map<String, Integer> getUserActionTokenLifespans() {
 
         Map<String, Integer> userActionTokens = new HashMap<>();
@@ -686,35 +707,47 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
     }
 
     @Override
-    @Deprecated
     public Stream<String> getDefaultRolesStream() {
-        return getDefaultRole().getCompositesStream().filter(this::isRealmRole).map(RoleModel::getName);
+        return realm.getDefaultRolesIds().stream().map(this::getRoleNameById);
     }
 
-    private boolean isRealmRole(RoleModel role) {
-        return ! role.isClientRole();
+    private String getRoleNameById(String id) {
+        return getRoleById(id).getName();
     }
 
     @Override
-    @Deprecated
     public void addDefaultRole(String name) {
-        getDefaultRole().addCompositeRole(getOrAddRoleId(name));
+        if (realm.getDefaultRolesIds().add(getOrAddRoleId(name))) {
+            em.flush();
+        }
     }
 
-    private RoleModel getOrAddRoleId(String name) {
+    private String getOrAddRoleId(String name) {
         RoleModel role = getRole(name);
         if (role == null) {
             role = addRole(name);
         }
-        return role;
+        return role.getId();
     }
 
     @Override
-    @Deprecated
+    public void updateDefaultRoles(String[] defaultRoles) {
+        Set<String> newDefaultRolesIds = Arrays.stream(defaultRoles)
+                .map(this::getOrAddRoleId)
+                .collect(Collectors.toSet());
+        realm.getDefaultRolesIds().retainAll(newDefaultRolesIds);
+        realm.getDefaultRolesIds().addAll(newDefaultRolesIds);
+        em.flush();
+    }
+
+    @Override
     public void removeDefaultRoles(String... defaultRoles) {
-        for (String defaultRole : defaultRoles) {
-            getDefaultRole().removeCompositeRole(getRole(defaultRole));
-        }
+        Arrays.stream(defaultRoles)
+                .map(this::getRole)
+                .filter(Objects::nonNull)
+                .map(RoleModel::getId)
+                .forEach(realm.getDefaultRolesIds()::remove);
+        em.flush();
     }
 
     @Override
@@ -786,11 +819,6 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
     @Override
     public Stream<ClientModel> searchClientByClientIdStream(String clientId, Integer firstResult, Integer maxResults) {
         return session.clients().searchClientsByClientIdStream(this, clientId, firstResult, maxResults);
-    }
-
-    @Override
-    public Stream<ClientModel> searchClientByAttributes(Map<String, String> attributes, Integer firstResult, Integer maxResults) {
-        return session.clients().searchClientsByAttributes(this, attributes, firstResult, maxResults);
     }
 
     private static final String BROWSER_HEADER_PREFIX = "_browser_header.";
@@ -894,7 +922,6 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
             otpPolicy.setLookAheadWindow(realm.getOtpPolicyLookAheadWindow());
             otpPolicy.setType(realm.getOtpPolicyType());
             otpPolicy.setPeriod(realm.getOtpPolicyPeriod());
-            otpPolicy.setCodeReusable(getAttribute(OTPPolicy.REALM_REUSABLE_CODE_ATTRIBUTE, OTPPolicy.DEFAULT_IS_REUSABLE));
         }
         return otpPolicy;
     }
@@ -907,7 +934,6 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
         realm.setOtpPolicyLookAheadWindow(policy.getLookAheadWindow());
         realm.setOtpPolicyType(policy.getType());
         realm.setOtpPolicyPeriod(policy.getPeriod());
-        setAttribute(OTPPolicy.REALM_REUSABLE_CODE_ATTRIBUTE, policy.isCodeReusable());
         em.flush();
     }
 
@@ -1167,7 +1193,7 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
         }
         RealmModel masterRealm = getName().equals(Config.getAdminRealm())
           ? this
-          : session.realms().getRealmByName(Config.getAdminRealm());
+          : session.realms().getRealm(Config.getAdminRealm());
         return session.clients().getClientById(masterRealm, masterAdminClientId);
     }
 
@@ -1176,19 +1202,6 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
         String appEntityId = client !=null ? em.getReference(ClientEntity.class, client.getId()).getId() : null;
         realm.setMasterAdminClient(appEntityId);
         em.flush();
-    }
-
-    @Override
-    public void setDefaultRole(RoleModel role) {
-        realm.setDefaultRoleId(role.getId());
-    }
-
-    @Override
-    public RoleModel getDefaultRole() {
-        if (realm.getDefaultRoleId() == null) {
-            return null;
-        }
-        return session.roles().getRoleById(this, realm.getDefaultRoleId());
     }
 
     @Override
@@ -1548,10 +1561,9 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
 
     @Override
     public AuthenticationFlowModel getFlowByAlias(String alias) {
-        return realm.getAuthenticationFlows().stream()
+        return getAuthenticationFlowsStream()
                 .filter(flow -> Objects.equals(flow.getAlias(), alias))
                 .findFirst()
-                .map(this::entityToModel)
                 .orElse(null);
     }
 
@@ -1799,9 +1811,6 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
 
     @Override
     public RequiredActionProviderModel addRequiredActionProvider(RequiredActionProviderModel model) {
-        if (getRequiredActionProviderByAlias(model.getAlias()) != null) {
-            throw new ModelDuplicateException("A Required Action Provider with given alias already exists.");
-        }
         RequiredActionProviderEntity auth = new RequiredActionProviderEntity();
         String id = (model.getId() == null) ? KeycloakModelUtils.generateId(): model.getId();
         auth.setId(id);
@@ -1938,9 +1947,8 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
     }
 
     @Override
-    @Deprecated
     public Stream<GroupModel> searchForGroupByNameStream(String search, Integer first, Integer max) {
-        return session.groups().searchForGroupByNameStream(this, search, false, first, max);
+        return session.groups().searchForGroupByNameStream(this, search, first, max);
     }
 
     @Override
@@ -1950,33 +1958,72 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
 
     @Override
     public Stream<ClientScopeModel> getClientScopesStream() {
-        return session.clientScopes().getClientScopesStream(this);
+        return realm.getClientScopes().stream().map(ClientScopeEntity::getId).map(this::getClientScopeById);
     }
 
     @Override
     public ClientScopeModel addClientScope(String name) {
-        return session.clientScopes().addClientScope(this, name);
+        return this.addClientScope(KeycloakModelUtils.generateId(), name);
     }
 
     @Override
     public ClientScopeModel addClientScope(String id, String name) {
-        return session.clientScopes().addClientScope(this, id, name);
+        ClientScopeEntity entity = new ClientScopeEntity();
+        entity.setId(id);
+        name = KeycloakModelUtils.convertClientScopeName(name);
+        entity.setName(name);
+        entity.setRealm(realm);
+        realm.getClientScopes().add(entity);
+        em.persist(entity);
+        em.flush();
+        final ClientScopeModel resource = new ClientScopeAdapter(this, em, session, entity);
+        em.flush();
+        return resource;
     }
 
     @Override
     public boolean removeClientScope(String id) {
-        return session.clientScopes().removeClientScope(this, id);
+        if (id == null) return false;
+        ClientScopeModel clientScope = getClientScopeById(id);
+        if (clientScope == null) return false;
+        if (KeycloakModelUtils.isClientScopeUsed(this, clientScope)) {
+            throw new ModelException("Cannot remove client scope, it is currently in use");
+        }
+
+        ClientScopeEntity clientScopeEntity = null;
+        Iterator<ClientScopeEntity> it = realm.getClientScopes().iterator();
+        while (it.hasNext()) {
+            ClientScopeEntity ae = it.next();
+            if (ae.getId().equals(id)) {
+                clientScopeEntity = ae;
+                it.remove();
+                break;
+            }
+        }
+        if (clientScope == null) {
+            return false;
+        }
+
+        session.users().preRemove(clientScope);
+
+        em.createNamedQuery("deleteClientScopeRoleMappingByClientScope").setParameter("clientScope", clientScopeEntity).executeUpdate();
+        em.flush();
+        em.remove(clientScopeEntity);
+        em.flush();
+
+
+        return true;
     }
 
     @Override
     public ClientScopeModel getClientScopeById(String id) {
-        return session.clientScopes().getClientScopeById(this, id);
+        return session.realms().getClientScopeById(id, this);
     }
 
     @Override
     public void addDefaultClientScope(ClientScopeModel clientScope, boolean defaultScope) {
         DefaultClientScopeRealmMappingEntity entity = new DefaultClientScopeRealmMappingEntity();
-        entity.setClientScopeId(clientScope.getId());
+        entity.setClientScope(ClientScopeAdapter.toClientScopeEntity(clientScope, em));
         entity.setRealm(getEntity());
         entity.setDefaultScope(defaultScope);
         em.persist(entity);
@@ -1987,7 +2034,7 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
     @Override
     public void removeDefaultClientScope(ClientScopeModel clientScope) {
         int numRemoved = em.createNamedQuery("deleteDefaultClientScopeRealmMapping")
-                .setParameter("clientScopeId", clientScope.getId())
+                .setParameter("clientScope", ClientScopeAdapter.toClientScopeEntity(clientScope, em))
                 .setParameter("realm", getEntity())
                 .executeUpdate();
         em.flush();
@@ -2179,13 +2226,14 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
     }
 
     @Override
-    public void createOrUpdateRealmLocalizationTexts(String locale, Map<String, String> localizationTexts) {
+    public void patchRealmLocalizationTexts(String locale, Map<String, String> localizationTexts) {
         Map<String, RealmLocalizationTextsEntity> currentLocalizationTexts = realm.getRealmLocalizationTexts();
         if(currentLocalizationTexts.containsKey(locale)) {
             RealmLocalizationTextsEntity localizationTextsEntity = currentLocalizationTexts.get(locale);
-            Map<String, String> updatedTexts = new HashMap<>(localizationTextsEntity.getTexts());
-            updatedTexts.putAll(localizationTexts);
-            localizationTextsEntity.setTexts(updatedTexts);
+            Map<String, String> keys = new HashMap<>(localizationTextsEntity.getTexts());
+            keys.putAll(localizationTexts);
+            localizationTextsEntity.setTexts(keys);
+            localizationTextsEntity.getTexts().putAll(localizationTexts);
 
             em.persist(localizationTextsEntity);
         }
@@ -2225,69 +2273,6 @@ public class RealmAdapter implements LegacyRealmModel, JpaModel<RealmEntity> {
             return realm.getRealmLocalizationTexts().get(locale).getTexts();
         }
         return Collections.emptyMap();
-    }
-
-    @Override
-    public ClientInitialAccessModel createClientInitialAccessModel(int expiration, int count) {
-        RealmEntity realmEntity = em.find(RealmEntity.class, realm.getId());
-
-        ClientInitialAccessEntity entity = new ClientInitialAccessEntity();
-        entity.setId(KeycloakModelUtils.generateId());
-        entity.setRealm(realmEntity);
-
-        entity.setCount(count);
-        entity.setRemainingCount(count);
-
-        int currentTime = Time.currentTime();
-        entity.setTimestamp(currentTime);
-        entity.setExpiration(expiration);
-
-        em.persist(entity);
-
-        return entityToModel(entity);
-    }
-
-    @Override
-    public ClientInitialAccessModel getClientInitialAccessModel(String id) {
-        ClientInitialAccessEntity entity = em.find(ClientInitialAccessEntity.class, id);
-        if (entity == null) return null;
-        if (!entity.getRealm().getId().equals(realm.getId())) return null;
-        return entityToModel(entity);
-    }
-
-    @Override
-    public void removeClientInitialAccessModel(String id) {
-        ClientInitialAccessEntity entity = em.find(ClientInitialAccessEntity.class, id, LockModeType.PESSIMISTIC_WRITE);
-        if (entity == null) return;
-        if (!entity.getRealm().getId().equals(realm.getId())) return;
-        em.remove(entity);
-        em.flush();
-    }
-
-    @Override
-    public Stream<ClientInitialAccessModel> getClientInitialAccesses() {
-        RealmEntity realmEntity = em.find(RealmEntity.class, realm.getId());
-
-        TypedQuery<ClientInitialAccessEntity> query = em.createNamedQuery("findClientInitialAccessByRealm", ClientInitialAccessEntity.class);
-        query.setParameter("realm", realmEntity);
-        return closing(query.getResultStream().map(this::entityToModel));
-    }
-
-    @Override
-    public void decreaseRemainingCount(ClientInitialAccessModel clientInitialAccess) {
-        em.createNamedQuery("decreaseClientInitialAccessRemainingCount")
-                .setParameter("id", clientInitialAccess.getId())
-                .executeUpdate();
-    }
-
-    private ClientInitialAccessModel entityToModel(ClientInitialAccessEntity entity) {
-        ClientInitialAccessModel model = new ClientInitialAccessModel();
-        model.setId(entity.getId());
-        model.setCount(entity.getCount());
-        model.setRemainingCount(entity.getRemainingCount());
-        model.setExpiration(entity.getExpiration());
-        model.setTimestamp(entity.getTimestamp());
-        return model;
     }
 
     @Override

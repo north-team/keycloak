@@ -17,10 +17,7 @@
 
 package org.keycloak.adapters.springsecurity.authentication;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -79,17 +76,6 @@ public class KeycloakAuthenticationEntryPointTest {
         authenticationEntryPoint.commence(request, response, null);
         assertEquals(HttpStatus.FOUND.value(), response.getStatus());
         assertEquals(KeycloakAuthenticationEntryPoint.DEFAULT_LOGIN_URI, response.getHeader("Location"));
-    }
-
-    @Test
-    public void testCommenceWithRedirectAndQueryParameters() throws Exception {
-        configureBrowserRequest();
-        request.setQueryString("prompt=login");
-        authenticationEntryPoint.commence(request, response, null);
-        assertEquals(HttpStatus.FOUND.value(), response.getStatus());
-        assertNotEquals(KeycloakAuthenticationEntryPoint.DEFAULT_LOGIN_URI, response.getHeader("Location"));
-        assertThat(response.getHeader("Location"), containsString(KeycloakAuthenticationEntryPoint.DEFAULT_LOGIN_URI));
-        assertThat(response.getHeader("Location"), containsString("prompt=login"));
     }
 
     @Test

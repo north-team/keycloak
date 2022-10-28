@@ -89,7 +89,6 @@ public class SSOTest extends AbstractTestRealmKeycloakTest {
 
         IDToken idToken = sendTokenRequestAndGetIDToken(loginEvent);
         Assert.assertEquals("1", idToken.getAcr());
-        Long authTime = idToken.getAuth_time();
 
         appPage.open();
 
@@ -105,8 +104,6 @@ public class SSOTest extends AbstractTestRealmKeycloakTest {
         // acr is 0 as we authenticated through SSO cookie
         idToken = sendTokenRequestAndGetIDToken(loginEvent);
         Assert.assertEquals("0", idToken.getAcr());
-        // auth time hasn't changed as we authenticated through SSO cookie
-        Assert.assertEquals(authTime, idToken.getAuth_time());
 
         profilePage.open();
         assertTrue(profilePage.isCurrent());
@@ -147,8 +144,7 @@ public class SSOTest extends AbstractTestRealmKeycloakTest {
 
             assertNotEquals(login1.getSessionId(), login2.getSessionId());
 
-            OAuthClient.AccessTokenResponse tokenResponse = sendTokenRequestAndGetResponse(login1);
-            oauth.idTokenHint(tokenResponse.getIdToken()).openLogout();
+            oauth.openLogout();
             events.expectLogout(login1.getSessionId()).assertEvent();
 
             oauth.openLoginForm();
@@ -161,10 +157,7 @@ public class SSOTest extends AbstractTestRealmKeycloakTest {
             Assert.assertEquals(RequestType.AUTH_RESPONSE, RequestType.valueOf(driver2.getTitle()));
             Assert.assertNotNull(oauth2.getCurrentQuery().get(OAuth2Constants.CODE));
 
-            String code = new OAuthClient.AuthorizationEndpointResponse(oauth2).getCode();
-            OAuthClient.AccessTokenResponse response = oauth2.doAccessTokenRequest(code, "password");
-            events.poll();
-            oauth2.idTokenHint(response.getIdToken()).openLogout();
+            oauth2.openLogout();
             events.expectLogout(login2.getSessionId()).assertEvent();
 
             oauth2.openLoginForm();

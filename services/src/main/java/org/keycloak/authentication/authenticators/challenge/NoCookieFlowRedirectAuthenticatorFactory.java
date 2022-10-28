@@ -82,7 +82,7 @@ public class NoCookieFlowRedirectAuthenticatorFactory implements AuthenticatorFa
 
     @Override
     public String getDisplayType() {
-        return "Browser Redirect for Cookie free authentication";
+        return "Browser Redirect/Refresh";
     }
 
     @Override

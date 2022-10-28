@@ -23,5 +23,4 @@ package org.keycloak.broker.provider;
  */
 public interface ConfigConstants {
     String ROLE = "role";
-    String GROUP = "group";
 }

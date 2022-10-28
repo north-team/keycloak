@@ -26,6 +26,8 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.credential.PasswordCredentialModel;
 
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -52,7 +54,7 @@ public class HistoryPasswordPolicyProvider implements PasswordPolicyProvider {
         PasswordPolicy policy = session.getContext().getRealm().getPasswordPolicy();
         int passwordHistoryPolicyValue = policy.getPolicyConfig(PasswordPolicy.PASSWORD_HISTORY_ID);
         if (passwordHistoryPolicyValue != -1) {
-            if (user.credentialManager().getStoredCredentialsByTypeStream(PasswordCredentialModel.TYPE)
+            if (session.userCredentialManager().getStoredCredentialsByTypeStream(realm, user, PasswordCredentialModel.TYPE)
                     .map(PasswordCredentialModel::createFromCredentialModel)
                     .anyMatch(passwordCredential -> {
                         PasswordHashProvider hash = session.getProvider(PasswordHashProvider.class,
@@ -63,7 +65,7 @@ public class HistoryPasswordPolicyProvider implements PasswordPolicyProvider {
             }
 
             if (passwordHistoryPolicyValue > 0) {
-                if (this.getRecent(user.credentialManager().getStoredCredentialsByTypeStream(PasswordCredentialModel.PASSWORD_HISTORY),
+                if (this.getRecent(session.userCredentialManager().getStoredCredentialsByTypeStream(realm, user, PasswordCredentialModel.PASSWORD_HISTORY),
                         passwordHistoryPolicyValue - 1)
                         .map(PasswordCredentialModel::createFromCredentialModel)
                         .anyMatch(passwordCredential -> {

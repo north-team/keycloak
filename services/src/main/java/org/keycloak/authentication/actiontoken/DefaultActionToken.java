@@ -17,21 +17,16 @@
 
 package org.keycloak.authentication.actiontoken;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.keycloak.TokenVerifier.Predicate;
 import org.keycloak.common.VerificationException;
-import org.keycloak.common.util.Time;
-import org.keycloak.models.SingleUseObjectValueModel;
-import org.keycloak.models.DefaultActionTokenKey;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.services.Urls;
 
+import org.keycloak.common.util.Time;
+import org.keycloak.models.*;
+import org.keycloak.services.Urls;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.*;
 import javax.ws.rs.core.UriInfo;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * Part of action token that is intended to be used e.g. in link sent in password-reset email.
@@ -39,13 +34,9 @@ import java.util.UUID;
  *
  * @author hmlnarik
  */
-public class DefaultActionToken extends DefaultActionTokenKey implements SingleUseObjectValueModel {
+public class DefaultActionToken extends DefaultActionTokenKey implements ActionTokenValueModel {
 
     public static final String JSON_FIELD_AUTHENTICATION_SESSION_ID = "asid";
-    public static final String JSON_FIELD_EMAIL = "eml";
-
-    @JsonProperty(value = JSON_FIELD_EMAIL)
-    private String email;
 
     public static final Predicate<DefaultActionTokenKey> ACTION_TOKEN_BASIC_CHECKS = t -> {
         if (t.getActionVerificationNonce() == null) {
@@ -129,14 +120,6 @@ public class DefaultActionToken extends DefaultActionTokenKey implements SingleU
     public final String removeNote(String name) {
         Object res = getOtherClaims().remove(name);
         return res instanceof String ? (String) res : null;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getEmail() {
-        return email;
     }
 
     /**

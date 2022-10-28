@@ -18,7 +18,6 @@
 package org.keycloak.sessions;
 
 import org.keycloak.models.ClientModel;
-import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.provider.Provider;
 
@@ -36,6 +35,18 @@ public interface AuthenticationSessionProvider extends Provider {
      * @return Returns created {@code RootAuthenticationSessionModel}. Never returns {@code null}.
      */
     RootAuthenticationSessionModel createRootAuthenticationSession(RealmModel realm);
+
+    /**
+     * Creates a new root authentication session specified by the provided id and realm.
+     * @param id {@code String} Id of newly created root authentication session. If {@code null} a random id will be generated.
+     * @param realm {@code RealmModel} Can't be {@code null}.
+     * @return Returns created {@code RootAuthenticationSessionModel}. Never returns {@code null}.
+     * @deprecated Use {@link #createRootAuthenticationSession(RealmModel, String)} createRootAuthenticationSession} instead.
+     */
+    @Deprecated
+    default RootAuthenticationSessionModel createRootAuthenticationSession(String id, RealmModel realm) {
+        return createRootAuthenticationSession(realm, id);
+    }
 
     /**
      * Creates a new root authentication session specified by the provided realm and id.
@@ -61,20 +72,8 @@ public interface AuthenticationSessionProvider extends Provider {
     void removeRootAuthenticationSession(RealmModel realm, RootAuthenticationSessionModel authenticationSession);
 
     /**
-     * Remove expired authentication sessions in all the realms
-     *
-     * @deprecated manual removal of expired entities should not be used anymore. It is responsibility of the store
-     *             implementation to handle expirable entities
-     */
-    void removeAllExpired();
-
-    /**
      * Removes all expired root authentication sessions for the given realm.
      * @param realm {@code RealmModel} Can't be {@code null}.
-     *
-     *
-     * @deprecated manual removal of expired entities should not be used anymore. It is responsibility of the store
-     *             implementation to handle expirable entities
      */
     void removeExpired(RealmModel realm);
 

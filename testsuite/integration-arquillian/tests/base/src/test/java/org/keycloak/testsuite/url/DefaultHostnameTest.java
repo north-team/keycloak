@@ -13,7 +13,6 @@ import org.keycloak.broker.provider.util.SimpleHttp;
 import org.keycloak.client.registration.Auth;
 import org.keycloak.client.registration.ClientRegistration;
 import org.keycloak.client.registration.ClientRegistrationException;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.UriUtils;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
@@ -26,29 +25,25 @@ import org.keycloak.representations.idm.ClientInitialAccessPresentation;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
-import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
-import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.ClientBuilder;
 import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.RealmBuilder;
 import org.keycloak.testsuite.util.UserBuilder;
 
-import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer.QUARKUS;
+import static org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer.REMOTE;
 import static org.keycloak.testsuite.util.OAuthClient.AUTH_SERVER_ROOT;
 import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
 
-@AuthServerContainerExclude({QUARKUS})
+@AuthServerContainerExclude({REMOTE, QUARKUS})
 public class DefaultHostnameTest extends AbstractHostnameTest {
 
     @ArquillianResource
@@ -78,7 +73,7 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
 
     @Test
     public void fixedFrontendUrl() throws Exception {
-        expectedBackendUrl = transformUrlIfQuarkusServer(AUTH_SERVER_ROOT);
+        expectedBackendUrl = AUTH_SERVER_ROOT;
 
         oauth.clientId("direct-grant");
 
@@ -92,33 +87,15 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
             assertInitialAccessTokenFromMasterRealm(testAdminClient,"test", globalFrontEndUrl);
             assertBackendForcedToFrontendWithMatchingHostname("test", globalFrontEndUrl);
 
-            assertAdminPage("master", globalFrontEndUrl, transformUrlIfQuarkusServer(globalFrontEndUrl, true));
+            assertWelcomePage(globalFrontEndUrl);
+            assertAdminPage("master", globalFrontEndUrl, globalFrontEndUrl);
 
             assertWellKnown("frontendUrl", realmFrontEndUrl);
             assertTokenIssuer("frontendUrl", realmFrontEndUrl);
             assertInitialAccessTokenFromMasterRealm(testAdminClient,"frontendUrl", realmFrontEndUrl);
             assertBackendForcedToFrontendWithMatchingHostname("frontendUrl", realmFrontEndUrl);
 
-            assertAdminPage("frontendUrl", realmFrontEndUrl, transformUrlIfQuarkusServer(realmFrontEndUrl, true));
-        } finally {
-            reset();
-        }
-    }
-
-    @Test
-    @DisableFeature(value = Profile.Feature.ADMIN2, skipRestart = true)
-    @EnableFeature(value = Profile.Feature.ADMIN, skipRestart = true)
-    public void fixedFrontendUrlOldAdminPage() throws Exception {
-        expectedBackendUrl = transformUrlIfQuarkusServer(AUTH_SERVER_ROOT);
-
-        oauth.clientId("direct-grant");
-
-        try (Keycloak testAdminClient = AdminClientUtil.createAdminClient(suiteContext.isAdapterCompatTesting(), getAuthServerContextRoot())) {
-
-            configureDefault(globalFrontEndUrl, false, null);
-
-            assertOldAdminPageJsPathSetCorrectly("master", transformUrlIfQuarkusServer(globalFrontEndUrl, true));
-
+            assertAdminPage("frontendUrl", realmFrontEndUrl, realmFrontEndUrl);
         } finally {
             reset();
         }
@@ -126,8 +103,8 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
 
     // KEYCLOAK-12953
     @Test
-    public void emptyRealmFrontendUrl() throws Exception {
-        expectedBackendUrl = transformUrlIfQuarkusServer(AUTH_SERVER_ROOT);
+    public void emptyRealmFrontendUrl() throws URISyntaxException {
+        expectedBackendUrl = AUTH_SERVER_ROOT;
         oauth.clientId("direct-grant");
 
         RealmResource realmResource = realmsResouce().realm("frontendUrl");
@@ -137,18 +114,17 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
             rep.getAttributes().put("frontendUrl", "");
             realmResource.update(rep);
 
-            assertWellKnown("frontendUrl", transformUrlIfQuarkusServer(AUTH_SERVER_ROOT));
+            assertWellKnown("frontendUrl", AUTH_SERVER_ROOT);
         } finally {
             rep.getAttributes().put("frontendUrl", realmFrontEndUrl);
             realmResource.update(rep);
-            reset();
         }
     }
 
     @Test
     public void fixedAdminUrl() throws Exception {
-        expectedBackendUrl = transformUrlIfQuarkusServer(AUTH_SERVER_ROOT);
-        String adminUrl = transformUrlIfQuarkusServer("https://admin.127.0.0.1.nip.io/custom-admin", true);
+        expectedBackendUrl = AUTH_SERVER_ROOT;
+        String adminUrl = "https://admin.127.0.0.1.nip.io/custom-admin";
 
         oauth.clientId("direct-grant");
 
@@ -168,7 +144,7 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
 
     @Test
     public void forceBackendUrlToFrontendUrl() throws Exception {
-        expectedBackendUrl = transformUrlIfQuarkusServer(AUTH_SERVER_ROOT);
+        expectedBackendUrl = AUTH_SERVER_ROOT;
 
         oauth.clientId("direct-grant");
 
@@ -216,7 +192,6 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
 
     private void assertTokenIssuer(String realm, String expectedBaseUrl) throws Exception {
         oauth.realm(realm);
-        oauth.requestHeaders(createRequestHeaders(expectedBaseUrl));
 
         OAuthClient.AccessTokenResponse tokenResponse = oauth.doGrantAccessTokenRequest("password", "test-user@localhost", "password");
 
@@ -230,8 +205,8 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
         assertEquals(expectedBaseUrl + "/realms/" + realm, introspectionNode.get("iss").asText());
     }
 
-    private void assertWellKnown(String realm, String expectedFrontendUrl) {
-        OIDCConfigurationRepresentation config = oauth.requestHeaders(createRequestHeaders(expectedFrontendUrl)).doWellKnownRequest(realm);
+    private void assertWellKnown(String realm, String expectedFrontendUrl) throws URISyntaxException {
+        OIDCConfigurationRepresentation config = oauth.doWellKnownRequest(realm);
         assertEquals(expectedFrontendUrl + "/realms/" + realm, config.getIssuer());
         assertEquals(expectedFrontendUrl + "/realms/" + realm + "/protocol/openid-connect/auth", config.getAuthorizationEndpoint());
         assertEquals(expectedBackendUrl + "/realms/" + realm + "/protocol/openid-connect/token", config.getTokenEndpoint());
@@ -242,17 +217,6 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
         assertEquals(expectedBackendUrl + "/realms/" + realm + "/clients-registrations/openid-connect", config.getRegistrationEndpoint());
     }
 
-    private Map<String, String> createRequestHeaders(String expectedFrontendUrl) {
-        Map<String, String> headers = new HashMap<>();
-
-        // for quarkus so that we resolve ports based on proxy headers
-        URI uri = URI.create(expectedFrontendUrl);
-
-        headers.put("X-Forwarded-Port", String.valueOf(uri.getPort()));
-
-        return headers;
-    }
-
     // Test backend is forced to frontend if the request hostname matches the frontend
     private void assertBackendForcedToFrontendWithMatchingHostname(String realm, String expectedFrontendUrl) throws URISyntaxException {
         String host = new URI(expectedFrontendUrl).getHost();
@@ -260,7 +224,7 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
         // Scheme and port doesn't matter as we force based on hostname only, so using http and bind port as we can't make requests on configured frontend URL since reverse proxy is not available
         oauth.baseUrl("http://" + host + ":" + System.getProperty("auth.server.http.port") + "/auth");
 
-        OIDCConfigurationRepresentation config = oauth.requestHeaders(createRequestHeaders(expectedFrontendUrl)).doWellKnownRequest(realm);
+        OIDCConfigurationRepresentation config = oauth.doWellKnownRequest(realm);
 
         assertEquals(expectedFrontendUrl + "/realms/" + realm, config.getIssuer());
         assertEquals(expectedFrontendUrl + "/realms/" + realm + "/protocol/openid-connect/auth", config.getAuthorizationEndpoint());
@@ -276,47 +240,20 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
 
     private void assertWelcomePage(String expectedAdminUrl) throws IOException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
-            SimpleHttp get = SimpleHttp.doGet(AUTH_SERVER_ROOT + "/", client);
-
-            for (Map.Entry<String, String> entry : createRequestHeaders(expectedAdminUrl).entrySet()) {
-                get.header(entry.getKey(), entry.getValue());
-            }
-
-            String welcomePage = get.asString();
+            String welcomePage = SimpleHttp.doGet(AUTH_SERVER_ROOT + "/", client).asString();
             assertTrue(welcomePage.contains("<a href=\"" + expectedAdminUrl + "/admin/\">"));
-        }
-    }
-
-
-    private void assertOldAdminPageJsPathSetCorrectly(String realm, String expectedAdminUrl) throws IOException {
-        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
-            SimpleHttp get = SimpleHttp.doGet(AUTH_SERVER_ROOT + "/admin/" + realm + "/console/", client);
-
-            for (Map.Entry<String, String> entry : createRequestHeaders(expectedAdminUrl).entrySet()) {
-                get.header(entry.getKey(), entry.getValue());
-            }
-
-            SimpleHttp.Response response = get.asResponse();
-            String indexPage = response.asString();
-            assertTrue(indexPage.contains("/custom/js/"));
         }
     }
 
     private void assertAdminPage(String realm, String expectedFrontendUrl, String expectedAdminUrl) throws IOException, URISyntaxException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
-            SimpleHttp get = SimpleHttp.doGet(AUTH_SERVER_ROOT + "/admin/" + realm + "/console/", client);
-
-            for (Map.Entry<String, String> entry : createRequestHeaders(expectedAdminUrl).entrySet()) {
-                get.header(entry.getKey(), entry.getValue());
-            }
-
-            SimpleHttp.Response response = get.asResponse();
+            SimpleHttp.Response response = SimpleHttp.doGet(AUTH_SERVER_ROOT + "/admin/" + realm +"/console/", client).asResponse();
             String indexPage = response.asString();
 
-            assertTrue(indexPage.contains("\"authServerUrl\": \"" + expectedFrontendUrl +"\""));
-            assertTrue(indexPage.contains("\"authUrl\": \"" + expectedAdminUrl +"\""));
-            assertTrue(indexPage.contains("\"consoleBaseUrl\": \"" + new URI(expectedAdminUrl).getPath() +"/admin/" + realm + "/console/\""));
-            assertTrue(indexPage.contains("\"resourceUrl\": \"" + new URI(expectedAdminUrl).getPath() +"/resources/"));
+            assertTrue(indexPage.contains("authServerUrl = '" + expectedFrontendUrl +"'"));
+            assertTrue(indexPage.contains("authUrl = '" + expectedAdminUrl +"'"));
+            assertTrue(indexPage.contains("consoleBaseUrl = '" + new URI(expectedAdminUrl).getPath() +"/admin/" + realm + "/console/'"));
+            assertTrue(indexPage.contains("resourceUrl = '" + new URI(expectedAdminUrl).getPath() +"/resources/"));
 
             String cspHeader = response.getFirstHeader(BrowserSecurityHeaders.CONTENT_SECURITY_POLICY.getHeaderName());
 
@@ -326,26 +263,6 @@ public class DefaultHostnameTest extends AbstractHostnameTest {
                 assertEquals("frame-src " + UriUtils.getOrigin(expectedFrontendUrl) + "; frame-ancestors 'self'; object-src 'none';", cspHeader);
             }
         }
-    }
-
-    public String transformUrlIfQuarkusServer(String expectedUrl) {
-        return transformUrlIfQuarkusServer(expectedUrl, false);
-    }
-
-    public String transformUrlIfQuarkusServer(String expectedUrl, boolean adminUrl) {
-        if (suiteContext.getAuthServerInfo().isQuarkus()) {
-            // for quarkus, when proxy is enabled we always default to the default https and http ports.
-            UriBuilder uriBuilder = UriBuilder.fromUri(expectedUrl).port(-1);
-
-            if (adminUrl) {
-                // for quarkus, the path is set from the request. As we are not running behind a proxy, that means defaults to /auth.
-                uriBuilder.replacePath("/auth");
-            }
-
-            return uriBuilder.build().toString();
-        }
-
-        return expectedUrl;
     }
 
 }

@@ -37,7 +37,6 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.keycloak.storage.UserStoragePrivateUtil;
 import org.keycloak.storage.UserStorageProviderModel;
 import org.keycloak.storage.ldap.LDAPStorageProvider;
 import org.keycloak.storage.ldap.idm.model.LDAPObject;
@@ -225,24 +224,24 @@ public class LDAPNoCacheTest extends AbstractLDAPTest {
             ctx.getLdapModel().setImportEnabled(true);
             realm.updateComponent(ctx.getLdapModel());
 
-            UserProvider localStorage = UserStoragePrivateUtil.userLocalStorage(session);
+            UserProvider localStorage = session.userLocalStorage();
             LDAPStorageProvider ldapProvider = ctx.getLdapProvider();
 
             // assume no user imported
-            UserModel user = localStorage.getUserByUsername(realm, "johnkeycloak");
+            UserModel user = localStorage.getUserByUsername("johnkeycloak", realm);
             assumeThat(user, is(nullValue()));
 
             // trigger import
-            List<UserModel> byEmail = ldapProvider.searchForUserByUserAttributeStream(realm, "email", "john_old@email.org")
+            List<UserModel> byEmail = ldapProvider.searchForUserByUserAttributeStream("email", "john_old@email.org", realm)
                     .collect(Collectors.toList());
             assumeThat(byEmail, hasSize(1));
 
             // assume that user has been imported
-            user = localStorage.getUserByUsername(realm, "johnkeycloak");
+            user = localStorage.getUserByUsername("johnkeycloak", realm);
             assumeThat(user, is(not(nullValue())));
 
             // search a second time
-            byEmail = ldapProvider.searchForUserByUserAttributeStream(realm, "email", "john_old@email.org")
+            byEmail = ldapProvider.searchForUserByUserAttributeStream("email", "john_old@email.org", realm)
                     .collect(Collectors.toList());
             assertThat(byEmail, hasSize(1));
         });

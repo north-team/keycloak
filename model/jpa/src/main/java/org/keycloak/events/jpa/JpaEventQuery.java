@@ -33,7 +33,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.keycloak.models.jpa.PaginationUtils.paginateQuery;
 import static org.keycloak.utils.StreamsUtil.closing;
 
 /**
@@ -48,7 +47,8 @@ public class JpaEventQuery implements EventQuery {
     private final ArrayList<Predicate> predicates;
     private Integer firstResult;
     private Integer maxResults;
-    private boolean orderByDescTime = true;
+
+    public static final int DEFAULT_MAX_RESULTS = Integer.MAX_VALUE >> 1;
 
     public JpaEventQuery(EntityManager em) {
         this.em = em;
@@ -118,32 +118,27 @@ public class JpaEventQuery implements EventQuery {
     }
 
     @Override
-    public EventQuery orderByDescTime() {
-        orderByDescTime = true;
-        return this;
-    }
-
-    @Override
-    public EventQuery orderByAscTime() {
-        orderByDescTime = false;
-        return this;
-    }
-
-    @Override
     public Stream<Event> getResultStream() {
         if (!predicates.isEmpty()) {
             cq.where(cb.and(predicates.toArray(new Predicate[predicates.size()])));
         }
 
-        if(orderByDescTime) {
-            cq.orderBy(cb.desc(root.get("time")));
-        } else {
-            cq.orderBy(cb.asc(root.get("time")));
-        }
+        cq.orderBy(cb.desc(root.get("time")));
 
         TypedQuery<EventEntity> query = em.createQuery(cq);
 
-        return closing(paginateQuery(query, firstResult, maxResults).getResultStream().map(JpaEventStoreProvider::convertEvent));
+        if (firstResult != null) {
+            query.setFirstResult(firstResult);
+        }
+
+        if (maxResults != null) {
+            query.setMaxResults(maxResults);
+        } else {
+            // to workaround https://hibernate.atlassian.net/browse/HHH-14295
+            query.setMaxResults(DEFAULT_MAX_RESULTS);
+        }
+
+        return closing(query.getResultStream().map(JpaEventStoreProvider::convertEvent));
     }
 
 }

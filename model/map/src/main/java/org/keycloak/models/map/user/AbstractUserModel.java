@@ -25,7 +25,7 @@ import org.keycloak.models.map.common.AbstractEntity;
 
 import java.util.Objects;
 
-public abstract class AbstractUserModel<E extends AbstractEntity> implements UserModel {
+public abstract class AbstractUserModel<E extends AbstractEntity> implements UserModel.Streams {
 
     protected final KeycloakSession session;
     protected final RealmModel realm;

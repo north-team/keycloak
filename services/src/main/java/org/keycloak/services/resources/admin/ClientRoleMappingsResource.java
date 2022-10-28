@@ -134,7 +134,7 @@ public class ClientRoleMappingsResource {
 
         return client.getRolesStream()
                 .filter(auth.roles()::canMapRole)
-                .filter(((Predicate<RoleModel>) user::hasDirectRole).negate())
+                .filter(((Predicate<RoleModel>) user::hasRole).negate())
                 .map(ModelToRepresentation::toBriefRepresentation);
     }
 

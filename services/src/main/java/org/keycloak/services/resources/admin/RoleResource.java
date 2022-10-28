@@ -20,7 +20,6 @@ package org.keycloak.services.resources.admin;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.ClientModel;
-import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.utils.ModelToRepresentation;
@@ -29,11 +28,7 @@ import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluato
 
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.core.UriInfo;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Stream;
 
 /**
@@ -58,45 +53,8 @@ public abstract class RoleResource {
         }
     }
 
-    protected void updateRole(RoleRepresentation rep, RoleModel role, RealmModel realm,
-            KeycloakSession session) {
-        String newName = rep.getName();
-        String previousName = role.getName();
-        if (!Objects.equals(previousName, newName)) {
-            role.setName(newName);
-
-            session.getKeycloakSessionFactory().publish(new RoleModel.RoleNameChangeEvent() {
-                @Override
-                public RealmModel getRealm() {
-                    return realm;
-                }
-
-                @Override
-                public String getNewName() {
-                    return newName;
-                }
-
-                @Override
-                public String getPreviousName() {
-                    return previousName;
-                }
-
-                @Override
-                public String getClientId() {
-                    if (!role.isClientRole()) {
-                        return null;
-                    }
-
-                    return ((ClientModel) role.getContainer()).getClientId();
-                }
-
-                @Override
-                public KeycloakSession getKeycloakSession() {
-                    return session;
-                }
-            });
-        }
-
+    protected void updateRole(RoleRepresentation rep, RoleModel role) {
+        role.setName(rep.getName());
         role.setDescription(rep.getDescription());
 
         if (rep.getAttributes() != null) {
@@ -115,7 +73,6 @@ public abstract class RoleResource {
 
     protected void addComposites(AdminPermissionEvaluator auth, AdminEventBuilder adminEvent, UriInfo uriInfo, List<RoleRepresentation> roles, RoleModel role) {
         for (RoleRepresentation rep : roles) {
-            if (rep.getId() == null) throw new NotFoundException("Could not find composite role");
             RoleModel composite = realm.getRoleById(rep.getId());
             if (composite == null) {
                 throw new NotFoundException("Could not find composite role");

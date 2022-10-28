@@ -25,20 +25,14 @@ import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.UserModelDelegate;
-import org.keycloak.storage.UserStoragePrivateUtil;
 import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.ldap.LDAPStorageProvider;
 import org.keycloak.storage.ldap.LDAPConfig;
 import org.keycloak.storage.ldap.LDAPStorageProviderFactory;
 import org.keycloak.storage.ldap.LDAPUtils;
-import org.keycloak.storage.ldap.idm.model.LDAPDn;
 import org.keycloak.storage.ldap.idm.model.LDAPObject;
 import org.keycloak.storage.ldap.idm.query.internal.LDAPQuery;
 import org.keycloak.storage.ldap.idm.store.ldap.LDAPIdentityStore;
-import org.keycloak.storage.ldap.mappers.HardcodedLDAPGroupStorageMapper;
-import org.keycloak.storage.ldap.mappers.HardcodedLDAPGroupStorageMapperFactory;
-import org.keycloak.storage.ldap.mappers.HardcodedLDAPRoleStorageMapper;
-import org.keycloak.storage.ldap.mappers.HardcodedLDAPRoleStorageMapperFactory;
 import org.keycloak.storage.ldap.mappers.LDAPStorageMapper;
 import org.keycloak.storage.ldap.mappers.UserAttributeLDAPStorageMapper;
 import org.keycloak.storage.ldap.mappers.UserAttributeLDAPStorageMapperFactory;
@@ -56,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -65,26 +58,14 @@ import java.util.stream.Stream;
 public class LDAPTestUtils {
 
     public static UserModel addLocalUser(KeycloakSession session, RealmModel realm, String username, String email, String password) {
-        UserModel user = UserStoragePrivateUtil.userLocalStorage(session).addUser(realm, username);
+        UserModel user = session.userLocalStorage().addUser(realm, username);
         user.setEmail(email);
         user.setEnabled(true);
 
         UserCredentialModel creds = UserCredentialModel.password(password);
 
-        user.credentialManager().updateCredential(creds);
+        session.userCredentialManager().updateCredential(realm, user, creds);
         return user;
-    }
-
-    public static void addLdapUser(KeycloakSession session, RealmModel appRealm, LDAPStorageProvider ldapFedProvider, String username, String password, Consumer<UserModel> userCustomizer) {
-
-        UserModel user = ldapFedProvider.addUser(appRealm, username);
-
-        userCustomizer.accept(user);
-
-        if (password == null) {
-            return;
-        }
-        user.credentialManager().updateCredential((UserCredentialModel) UserCredentialModel.password(username));
     }
 
     public static LDAPObject addLDAPUser(LDAPStorageProvider ldapProvider, RealmModel realm, final String username,
@@ -145,18 +126,6 @@ public class LDAPTestUtils {
             }
         };
         return LDAPUtils.addUserToLDAP(ldapProvider, realm, helperUser);
-    }
-
-    public static LDAPObject addLdapOU(LDAPStorageProvider ldapProvider, String name) {
-        LDAPObject ldapObject = new LDAPObject();
-        ldapObject.setRdnAttributeName("ou");
-        ldapObject.setObjectClasses(Collections.singletonList("organizationalUnit"));
-        ldapObject.setSingleAttribute("ou", name);
-        LDAPDn dn = LDAPDn.fromString(ldapProvider.getLdapIdentityStore().getConfig().getUsersDn());
-        dn.addFirst("ou", name);
-        ldapObject.setDn(dn);
-        ldapProvider.getLdapIdentityStore().add(ldapObject);
-        return ldapObject;
     }
 
     public static void updateLDAPPassword(LDAPStorageProvider ldapProvider, LDAPObject ldapUser, String password) {
@@ -233,20 +202,6 @@ public class LDAPTestUtils {
                 .orElse(null);
     }
 
-    public static void addOrUpdateHardcodedGroupMapper(RealmModel realm, ComponentModel providerModel, String... otherConfigOptions) {
-        ComponentModel mapperModel = getSubcomponentByName(realm, providerModel, "hardcodedGroupsMapper");
-        if (mapperModel != null) {
-            updateGroupMapperConfigOptions(mapperModel, otherConfigOptions);
-            realm.updateComponent(mapperModel);
-        } else {
-            mapperModel = KeycloakModelUtils.createComponentModel("hardcodedGroupsMapper", providerModel.getId(),
-                    HardcodedLDAPGroupStorageMapperFactory.PROVIDER_ID, LDAPStorageMapper.class.getName(),
-                    HardcodedLDAPGroupStorageMapper.GROUP, "parent_group/hardcoded_group");
-            updateConfigOptions(mapperModel, otherConfigOptions);
-            realm.addComponentModel(mapperModel);
-        }
-    }
-
     public static void addOrUpdateGroupMapper(RealmModel realm, ComponentModel providerModel, LDAPGroupMapperMode mode, String descriptionAttrName, String... otherConfigOptions) {
         ComponentModel mapperModel = getSubcomponentByName(realm, providerModel, "groupsMapper");
         if (mapperModel != null) {
@@ -262,19 +217,6 @@ public class LDAPTestUtils {
                     GroupMapperConfig.MODE, mode.toString(),
                     GroupMapperConfig.LDAP_GROUPS_PATH, "/");
             updateGroupMapperConfigOptions(mapperModel, otherConfigOptions);
-            realm.addComponentModel(mapperModel);
-        }
-    }
-
-    public static void addOrUpdateHardcodedRoleMapper(RealmModel realm, ComponentModel providerModel, String... otherConfigOptions) {
-        ComponentModel mapperModel = getSubcomponentByName(realm, providerModel, "hardcodedRolesMapper");
-        if (mapperModel != null) {
-            updateConfigOptions(mapperModel, otherConfigOptions);
-            realm.updateComponent(mapperModel);
-        } else {
-            mapperModel = KeycloakModelUtils.createComponentModel("hardcodedRolesMapper", providerModel.getId(), HardcodedLDAPRoleStorageMapperFactory.PROVIDER_ID, LDAPStorageMapper.class.getName(),
-                    HardcodedLDAPRoleStorageMapper.ROLE, "hardcoded_role");
-            updateConfigOptions(mapperModel, otherConfigOptions);
             realm.addComponentModel(mapperModel);
         }
     }
@@ -296,17 +238,12 @@ public class LDAPTestUtils {
         }
     }
 
-    public static void updateConfigOptions(ComponentModel componentModel, String... configOptions) {
+    public static void updateGroupMapperConfigOptions(ComponentModel mapperModel, String... configOptions) {
         for (int i=0 ; i<configOptions.length ; i+=2) {
             String cfgName = configOptions[i];
             String cfgValue = configOptions[i+1];
-            componentModel.getConfig().putSingle(cfgName, cfgValue);
+            mapperModel.getConfig().putSingle(cfgName, cfgValue);
         }
-    }
-
-    @Deprecated
-    public static void updateGroupMapperConfigOptions(ComponentModel mapperModel, String... configOptions) {
-        updateConfigOptions(mapperModel, configOptions);
     }
 
     // End CRUD model mappers

@@ -19,11 +19,9 @@ package org.keycloak.testsuite.pages;
 
 import org.jboss.arquillian.graphene.page.Page;
 import org.junit.Assert;
-import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.testsuite.auth.page.AccountFields;
 import org.keycloak.testsuite.auth.page.PasswordFields;
 import org.keycloak.testsuite.util.UIUtils;
-import org.openqa.selenium.By;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
@@ -56,9 +54,6 @@ public class RegisterPage extends AbstractPage {
 
     @FindBy(id = "password-confirm")
     private WebElement passwordConfirmInput;
-    
-    @FindBy(id = "department")
-    private WebElement departmentInput;
 
     @FindBy(css = "input[type=\"submit\"]")
     private WebElement submitButton;
@@ -72,11 +67,8 @@ public class RegisterPage extends AbstractPage {
     @FindBy(linkText = "« Back to Login")
     private WebElement backToLoginLink;
 
-    public void register(String firstName, String lastName, String email, String username, String password, String passwordConfirm) {
-        register(firstName, lastName, email, username, password, passwordConfirm, null);
-    }
 
-    public void register(String firstName, String lastName, String email, String username, String password, String passwordConfirm, String department) {
+    public void register(String firstName, String lastName, String email, String username, String password, String passwordConfirm) {
         firstNameInput.clear();
         if (firstName != null) {
             firstNameInput.sendKeys(firstName);
@@ -105,13 +97,6 @@ public class RegisterPage extends AbstractPage {
         passwordConfirmInput.clear();
         if (passwordConfirm != null) {
             passwordConfirmInput.sendKeys(passwordConfirm);
-        }
-
-        if(isDepartmentPresent()) {
-            departmentInput.clear();
-            if (department != null) {
-                departmentInput.sendKeys(department);
-            }
         }
 
         submitButton.click();
@@ -173,10 +158,6 @@ public class RegisterPage extends AbstractPage {
         }
         return null;
     }
-    
-    public String getLabelForField(String fieldId) {
-        return driver.findElement(By.cssSelector("label[for="+fieldId+"]")).getText();
-    }
 
     public String getFirstName() {
         return firstNameInput.getAttribute("value");
@@ -202,23 +183,6 @@ public class RegisterPage extends AbstractPage {
         return passwordConfirmInput.getAttribute("value");
     }
 
-    public String getDepartment() {
-        return departmentInput.getAttribute("value");
-    }
-
-    public boolean isDepartmentEnabled() {
-        return departmentInput.isEnabled();
-    }
-
-    public boolean isDepartmentPresent() {
-        try {
-            return driver.findElement(By.id("department")).isDisplayed();
-        } catch (NoSuchElementException nse) {
-            return false;
-        }
-    }
-
-    
     public boolean isCurrent() {
         return PageUtils.getPageTitle(driver).equals("Register");
     }
@@ -233,13 +197,7 @@ public class RegisterPage extends AbstractPage {
 
     @Override
     public void open() {
-        oauth.openRegistrationForm();
-        assertCurrent();
-    }
-
-    public void openWithLoginHint(String loginHint) {
-        oauth.addCustomParameter(OIDCLoginProtocol.LOGIN_HINT_PARAM, loginHint).openRegistrationForm();
-        assertCurrent();
+        throw new UnsupportedOperationException();
     }
 
 }

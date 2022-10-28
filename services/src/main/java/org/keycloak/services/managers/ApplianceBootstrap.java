@@ -43,7 +43,7 @@ public class ApplianceBootstrap {
     }
 
     public boolean isNewInstall() {
-        if (session.realms().getRealmByName(Config.getAdminRealm()) != null) {
+        if (session.realms().getRealm(Config.getAdminRealm()) != null) {
             return false;
         } else {
             return true;
@@ -51,7 +51,7 @@ public class ApplianceBootstrap {
     }
 
     public boolean isNoMasterUser() {
-        RealmModel realm = session.realms().getRealmByName(Config.getAdminRealm());
+        RealmModel realm = session.realms().getRealm(Config.getAdminRealm());
         return session.users().getUsersCount(realm) == 0;
     }
 
@@ -64,13 +64,12 @@ public class ApplianceBootstrap {
         ServicesLogger.LOGGER.initializingAdminRealm(adminRealmName);
 
         RealmManager manager = new RealmManager(session);
-        RealmModel realm = manager.createRealm(adminRealmName);
+        RealmModel realm = manager.createRealm(adminRealmName, adminRealmName);
         realm.setName(adminRealmName);
         realm.setDisplayName(Version.NAME);
         realm.setDisplayNameHtml(Version.NAME_HTML);
         realm.setEnabled(true);
         realm.addRequiredCredential(CredentialRepresentation.PASSWORD);
-        realm.setDefaultSignatureAlgorithm(Constants.DEFAULT_SIGNATURE_ALGORITHM);
         realm.setSsoSessionIdleTimeout(1800);
         realm.setAccessTokenLifespan(60);
         realm.setAccessTokenLifespanForImplicitFlow(Constants.DEFAULT_ACCESS_TOKEN_LIFESPAN_FOR_IMPLICIT_FLOW_TIMEOUT);
@@ -87,13 +86,12 @@ public class ApplianceBootstrap {
         realm.setRegistrationEmailAsUsername(false);
 
         session.getContext().setRealm(realm);
-        DefaultKeyProviders.createProviders(realm);
 
         return true;
     }
 
     public void createMasterRealmUser(String username, String password) {
-        RealmModel realm = session.realms().getRealmByName(Config.getAdminRealm());
+        RealmModel realm = session.realms().getRealm(Config.getAdminRealm());
         session.getContext().setRealm(realm);
 
         if (session.users().getUsersCount(realm) > 0) {
@@ -104,7 +102,7 @@ public class ApplianceBootstrap {
         adminUser.setEnabled(true);
 
         UserCredentialModel usrCredModel = UserCredentialModel.password(password);
-        adminUser.credentialManager().updateCredential(usrCredModel);
+        session.userCredentialManager().updateCredential(realm, adminUser, usrCredModel);
 
         RoleModel adminRole = realm.getRole(AdminRoles.ADMIN);
         adminUser.grantRole(adminRole);

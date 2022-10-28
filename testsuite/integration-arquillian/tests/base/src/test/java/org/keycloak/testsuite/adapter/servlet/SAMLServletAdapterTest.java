@@ -109,9 +109,7 @@ import org.keycloak.admin.client.resource.RoleScopeResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.common.util.Base64;
 import org.keycloak.common.util.KeyUtils;
-import org.keycloak.common.util.MultivaluedHashMap;
 import org.keycloak.common.util.PemUtils;
-import org.keycloak.dom.saml.v2.metadata.EntityDescriptorType;
 import org.keycloak.dom.saml.v2.protocol.AuthnRequestType;
 import org.keycloak.dom.saml.v2.protocol.ResponseType;
 import org.keycloak.dom.saml.v2.protocol.StatusCodeType;
@@ -127,7 +125,6 @@ import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.keycloak.saml.common.constants.GeneralConstants;
 import org.keycloak.saml.common.constants.JBossSAMLConstants;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.util.DocumentUtil;
@@ -139,6 +136,7 @@ import org.keycloak.services.resources.RealmsResource;
 import org.keycloak.testsuite.adapter.page.*;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.AppServerContainer;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.util.ServerURLs;
 import org.keycloak.testsuite.utils.arquillian.ContainerConstants;
 import org.keycloak.testsuite.auth.page.login.Login;
@@ -173,9 +171,11 @@ import org.xml.sax.SAXException;
  */
 @AppServerContainer(ContainerConstants.APP_SERVER_UNDERTOW)
 @AppServerContainer(ContainerConstants.APP_SERVER_WILDFLY)
+@AppServerContainer(ContainerConstants.APP_SERVER_WILDFLY_DEPRECATED)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP6)
 @AppServerContainer(ContainerConstants.APP_SERVER_EAP71)
+@AppServerContainer(ContainerConstants.APP_SERVER_TOMCAT7)
 @AppServerContainer(ContainerConstants.APP_SERVER_TOMCAT8)
 @AppServerContainer(ContainerConstants.APP_SERVER_TOMCAT9)
 public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
@@ -491,7 +491,6 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
 
     private void assertSuccessfulLogin(AbstractPage page, UserRepresentation user, Login loginPage, String expectedString) {
         page.navigateTo();
-        waitForPageToLoad();
         assertCurrentUrlStartsWith(loginPage);
         loginPage.form().login(user);
         waitUntilElement(By.xpath("//body")).text().contains(expectedString);
@@ -657,11 +656,11 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
 
         ComponentRepresentation rep = new ComponentRepresentation();
         rep.setName("mycomponent");
-        rep.setParentId(adminClient.realm(DEMO).toRepresentation().getId());
+        rep.setParentId("demo");
         rep.setProviderId(ImportedRsaKeyProviderFactory.ID);
         rep.setProviderType(KeyProvider.class.getName());
 
-        MultivaluedHashMap<String, String> config = new MultivaluedHashMap<>();
+        org.keycloak.common.util.MultivaluedHashMap config = new org.keycloak.common.util.MultivaluedHashMap();
         config.addFirst("priority", priority);
         config.addFirst(Attributes.PRIVATE_KEY_KEY, NEW_KEY_PRIVATE_KEY_PEM);
         rep.setConfig(config);
@@ -672,8 +671,7 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
     }
 
     private void dropKeys(String priority) {
-        String parentId = adminClient.realm(DEMO).toRepresentation().getId();
-        for (ComponentRepresentation c : testRealmResource().components().query(parentId, KeyProvider.class.getName())) {
+        for (ComponentRepresentation c : testRealmResource().components().query("demo", KeyProvider.class.getName())) {
             if (c.getConfig().getFirst("priority").equals(priority)) {
                 testRealmResource().components().component(c.getId()).remove();
                 return;
@@ -683,10 +681,6 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
     }
 
     private void testRotatedKeysPropagated(SAMLServlet servletPage, Login loginPage) throws Exception {
-        testRotatedKeysPropagated(servletPage, loginPage, true);
-    }
-
-    private void testRotatedKeysPropagated(SAMLServlet servletPage, Login loginPage, boolean shouldLogout) throws Exception {
         boolean keyDropped = false;
         try {
             log.info("Creating new key");
@@ -697,11 +691,8 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
             keyDropped = true;
             testSuccessfulAndUnauthorizedLogin(servletPage, loginPage);
         } finally {
-            if (!keyDropped) {
+            if (! keyDropped) {
                 dropKeys("1000");
-            }
-            if (shouldLogout) {
-                servletPage.logout();
             }
         }
     }
@@ -938,7 +929,7 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
     @Test
     // https://issues.jboss.org/browse/KEYCLOAK-3971
     public void salesPostSigTestUnicodeCharacters() {
-        final String username = "ěščřžýáíroàåéèíñòøöùüßåäöü";
+        final String username = "ěščřžýáíRoàåéèíñòøöùüßÅÄÖÜ";
         UserRepresentation user = UserBuilder
           .edit(createUserRepresentation(username, "xyz@redhat.com", "ěščřžýáí", "RoàåéèíñòøöùüßÅÄÖÜ", true))
           .addPassword(PASSWORD)
@@ -964,7 +955,7 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
     @Test
     // https://issues.jboss.org/browse/KEYCLOAK-3971
     public void employeeSigTestUnicodeCharacters() {
-        final String username = "ěščřžýáíroàåéèíñòøöùüßåäöü";
+        final String username = "ěščřžýáíRoàåéèíñòøöùüßÅÄÖÜ";
         UserRepresentation user = UserBuilder
           .edit(createUserRepresentation(username, "xyz@redhat.com", "ěščřžýáí", "RoàåéèíñòøöùüßÅÄÖÜ", true))
           .addPassword(PASSWORD)
@@ -1365,8 +1356,6 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
             try (CloseableHttpResponse response = client.execute(httpGet)) {
                 String stringResponse = EntityUtils.toString(response.getEntity());
                 validateXMLWithSchema(stringResponse, "/adapter-test/keycloak-saml/metadata-schema/saml-schema-metadata-2.0.xsd");
-                Object descriptor = SAMLParser.getInstance().parse(new ByteArrayInputStream(stringResponse.getBytes(GeneralConstants.SAML_CHARSET)));
-                assertThat(descriptor, instanceOf(EntityDescriptorType.class));
             }
         }
     }
@@ -1397,12 +1386,9 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
         ClientRepresentation representation = clientResource.toRepresentation();
         Client client = AdminClientUtil.createResteasyClient();
         WebTarget target = client.target(authServerPage.toString() + "/admin/realms/" + SAMLSERVLETDEMO + "/clients/" + representation.getId() + "/installation/providers/saml-sp-descriptor");
-        try (Response response = target.request().header(HttpHeaders.AUTHORIZATION, "Bearer " + adminClient.tokenManager().getAccessToken().getToken()).get()) {
-            String stringResponse = response.readEntity(String.class);
-            validateXMLWithSchema(stringResponse, "/adapter-test/keycloak-saml/metadata-schema/saml-schema-metadata-2.0.xsd");
-            Object descriptor = SAMLParser.getInstance().parse(new ByteArrayInputStream(stringResponse.getBytes(GeneralConstants.SAML_CHARSET)));
-            assertThat(descriptor, instanceOf(EntityDescriptorType.class));
-        }
+        Response response = target.request().header(HttpHeaders.AUTHORIZATION, "Bearer " + adminClient.tokenManager().getAccessToken().getToken()).get();
+        validateXMLWithSchema(response.readEntity(String.class), "/adapter-test/keycloak-saml/metadata-schema/saml-schema-metadata-2.0.xsd");
+        response.close();
     }
 
     @Test
@@ -1588,6 +1574,8 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
         client.close();
     }
 
+    @AuthServerContainerExclude(value = AuthServerContainerExclude.AuthServer.QUARKUS, details =
+            "Exclude Quarkus because when running on Java 9+ you get CNF exceptions due to the fact that javax.xml.soap was removed (as well as other JEE modules). Need to discuss how we are going to solve this for both main dist and Quarkus")
     @Test
     public void testSuccessfulEcpFlow() throws Exception {
         Response authnRequestResponse = AdminClientUtil.createResteasyClient().target(ecpSPPage.toString()).request()
@@ -1678,6 +1666,8 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
         Assert.assertThat(resourceResponse.readEntity(String.class), containsString("pedroigor"));
     }
 
+    @AuthServerContainerExclude(value = AuthServerContainerExclude.AuthServer.QUARKUS, details =
+    "Exclude Quarkus because when running on Java 9+ you get CNF exceptions due to the fact that javax.xml.soap was removed (as well as other JEE modules). Need to discuss how we are going to solve this for both main dist and Quarkus")
     @Test
     public void testInvalidCredentialsEcpFlow() throws Exception {
         Response authnRequestResponse = AdminClientUtil.createResteasyClient().target(ecpSPPage.toString()).request()

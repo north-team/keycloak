@@ -34,7 +34,7 @@ public class HttpBasicAuthenticator implements Authenticator {
         if (usernameAndPassword != null) {
             final RealmModel realm = context.getRealm();
             final String username = usernameAndPassword[0];
-            final UserModel user = context.getSession().users().getUserByUsername(realm, username);
+            final UserModel user = context.getSession().users().getUserByUsername(username, realm);
 
             // to allow success/failure logging for brute force
             context.getEvent().detail(Details.USERNAME, username);
@@ -42,7 +42,7 @@ public class HttpBasicAuthenticator implements Authenticator {
 
             if (user != null) {
                 final String password = usernameAndPassword[1];
-                final boolean valid = user.credentialManager().isValid(UserCredentialModel.password(password));
+                final boolean valid = context.getSession().userCredentialManager().isValid(realm, user, UserCredentialModel.password(password));
 
                 if (valid) {
                     if (isTemporarilyDisabledByBruteForce(context, user)) {

@@ -20,12 +20,10 @@ package org.keycloak.models.sessions.infinispan;
 import org.keycloak.cluster.ClusterProvider;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.infinispan.Cache;
 import org.jboss.logging.Logger;
 import org.keycloak.common.util.Base64Url;
-import org.keycloak.common.util.SecretGenerator;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
@@ -36,10 +34,12 @@ import org.keycloak.models.sessions.infinispan.events.RealmRemovedSessionEvent;
 import org.keycloak.models.sessions.infinispan.events.SessionEventsSenderTransaction;
 import org.keycloak.models.sessions.infinispan.stream.RootAuthenticationSessionPredicate;
 import org.keycloak.models.sessions.infinispan.util.InfinispanKeyGenerator;
-import org.keycloak.models.utils.SessionExpiration;
+import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.models.utils.RealmInfoUtil;
 import org.keycloak.sessions.AuthenticationSessionCompoundId;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
+import org.infinispan.AdvancedCache;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -51,16 +51,13 @@ public class InfinispanAuthenticationSessionProvider implements AuthenticationSe
     private final KeycloakSession session;
     private final Cache<String, RootAuthenticationSessionEntity> cache;
     private final InfinispanKeyGenerator keyGenerator;
-    private final int authSessionsLimit;
     protected final InfinispanKeycloakTransaction tx;
     protected final SessionEventsSenderTransaction clusterEventsSenderTx;
 
-    public InfinispanAuthenticationSessionProvider(KeycloakSession session, InfinispanKeyGenerator keyGenerator,
-                                                   Cache<String, RootAuthenticationSessionEntity> cache, int authSessionsLimit) {
+    public InfinispanAuthenticationSessionProvider(KeycloakSession session, InfinispanKeyGenerator keyGenerator, Cache<String, RootAuthenticationSessionEntity> cache) {
         this.session = session;
         this.cache = cache;
         this.keyGenerator = keyGenerator;
-        this.authSessionsLimit = authSessionsLimit;
 
         this.tx = new InfinispanKeycloakTransaction();
         this.clusterEventsSenderTx = new SessionEventsSenderTransaction(session);
@@ -83,32 +80,42 @@ public class InfinispanAuthenticationSessionProvider implements AuthenticationSe
         entity.setRealmId(realm.getId());
         entity.setTimestamp(Time.currentTime());
 
-        int expirationSeconds = SessionExpiration.getAuthSessionLifespan(realm);
-        tx.put(cache, id, entity, expirationSeconds, TimeUnit.SECONDS);
+        tx.put(cache, id, entity);
 
         return wrap(realm, entity);
     }
 
 
     private RootAuthenticationSessionAdapter wrap(RealmModel realm, RootAuthenticationSessionEntity entity) {
-        return entity==null ? null : new RootAuthenticationSessionAdapter(session, this, cache, realm, entity, authSessionsLimit);
+        return entity==null ? null : new RootAuthenticationSessionAdapter(session, this, cache, realm, entity);
     }
 
 
     private RootAuthenticationSessionEntity getRootAuthenticationSessionEntity(String authSessionId) {
         // Chance created in this transaction
         RootAuthenticationSessionEntity entity = tx.get(cache, authSessionId);
+
+        if (entity == null) {
+            entity = cache.get(authSessionId);
+        }
+
         return entity;
     }
 
-    @Override
-    public void removeAllExpired() {
-        // Rely on expiration of cache entries provided by infinispan. Nothing needed here
-    }
 
     @Override
     public void removeExpired(RealmModel realm) {
-        // Rely on expiration of cache entries provided by infinispan. Nothing needed here
+        log.debugf("Removing expired sessions");
+
+        int expired = Time.currentTime() - RealmInfoUtil.getDettachedClientSessionLifespan(realm);
+
+        final AdvancedCache<String, RootAuthenticationSessionEntity> localCache = CacheDecorators.localCache(cache);
+        int localCacheSizePre = localCache.size();
+        // Each cluster node cleanups just local sessions, which are those owned by himself (+ few more taking l1 cache into account)
+        localCache.entrySet()
+                .removeIf(RootAuthenticationSessionPredicate.create(realm.getId()).expired(expired));
+
+        log.debugf("Removed %d expired authentication sessions for realm '%s'", localCache.size() - localCacheSizePre, realm.getName());
     }
 
     @Override
@@ -186,6 +193,6 @@ public class InfinispanAuthenticationSessionProvider implements AuthenticationSe
 
 
     protected String generateTabId() {
-        return Base64Url.encode(SecretGenerator.getInstance().randomBytes(8));
+        return Base64Url.encode(KeycloakModelUtils.generateSecret(8));
     }
 }

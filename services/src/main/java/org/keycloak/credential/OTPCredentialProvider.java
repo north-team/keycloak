@@ -19,15 +19,15 @@ package org.keycloak.credential;
 import org.jboss.logging.Logger;
 import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.common.util.Time;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.OTPPolicy;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.SingleUseObjectProvider;
-import org.keycloak.models.UserCredentialModel;
-import org.keycloak.models.UserModel;
+import org.keycloak.models.RequiredActionProviderModel;
 import org.keycloak.models.credential.OTPCredentialModel;
 import org.keycloak.models.credential.dto.OTPCredentialData;
 import org.keycloak.models.credential.dto.OTPSecretData;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.OTPPolicy;
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserCredentialModel;
+import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.HmacOTP;
 import org.keycloak.models.utils.TimeBasedOTP;
 
@@ -42,6 +42,26 @@ public class OTPCredentialProvider implements CredentialProvider<OTPCredentialMo
 
     protected KeycloakSession session;
 
+    /*protected List<CredentialModel> getCachedCredentials(UserModel user, String type) {
+        if (!(user instanceof CachedUserModel)) return null;
+        CachedUserModel cached = (CachedUserModel)user;
+        if (cached.isMarkedForEviction()) return null;
+        List<CredentialModel> rtn = (List<CredentialModel>)cached.getCachedWith().get(getType());
+        if (rtn == null) return Collections.EMPTY_LIST;
+        return rtn;
+    }*/
+
+    private UserCredentialStore getCredentialStore() {
+        return session.userCredentialManager();
+    }
+
+    /*@Override
+    public void onCache(RealmModel realm, CachedUserModel user, UserModel delegate) {
+        List<CredentialModel> creds = getCredentialStore().getStoredCredentialsByType(realm, user, getType());
+        user.getCachedWith().put(getType(), creds);
+
+    }*/
+
     public OTPCredentialProvider(KeycloakSession session) {
         this.session = session;
     }
@@ -51,12 +71,12 @@ public class OTPCredentialProvider implements CredentialProvider<OTPCredentialMo
         if (credentialModel.getCreatedDate() == null) {
             credentialModel.setCreatedDate(Time.currentTimeMillis());
         }
-        return user.credentialManager().createStoredCredential(credentialModel);
+        return getCredentialStore().createCredential(realm, user, credentialModel);
     }
 
     @Override
     public boolean deleteCredential(RealmModel realm, UserModel user, String credentialId) {
-        return user.credentialManager().removeStoredCredentialById(credentialId);
+        return getCredentialStore().removeStoredCredential(realm, user, credentialId);
     }
 
     @Override
@@ -72,7 +92,7 @@ public class OTPCredentialProvider implements CredentialProvider<OTPCredentialMo
     @Override
     public boolean isConfiguredFor(RealmModel realm, UserModel user, String credentialType) {
         if (!supportsCredentialType(credentialType)) return false;
-        return user.credentialManager().getStoredCredentialsByTypeStream(credentialType).findAny().isPresent();
+        return getCredentialStore().getStoredCredentialsByTypeStream(realm, user, credentialType).count() > 0;
     }
 
     public boolean isConfiguredFor(RealmModel realm, UserModel user){
@@ -95,12 +115,11 @@ public class OTPCredentialProvider implements CredentialProvider<OTPCredentialMo
             return false;
         }
 
-        CredentialModel credential = user.credentialManager().getStoredCredentialById(credentialInput.getCredentialId());
+        CredentialModel credential = getCredentialStore().getStoredCredentialById(realm, user, credentialInput.getCredentialId());
         OTPCredentialModel otpCredentialModel = OTPCredentialModel.createFromCredentialModel(credential);
         OTPSecretData secretData = otpCredentialModel.getOTPSecretData();
         OTPCredentialData credentialData = otpCredentialModel.getOTPCredentialData();
         OTPPolicy policy = realm.getOTPPolicy();
-
         if (OTPCredentialModel.HOTP.equals(credentialData.getSubType())) {
             HmacOTP validator = new HmacOTP(credentialData.getDigits(), credentialData.getAlgorithm(), policy.getLookAheadWindow());
             int counter = validator.validateHOTP(challengeResponse, secretData.getValue(), credentialData.getCounter());
@@ -108,21 +127,11 @@ public class OTPCredentialProvider implements CredentialProvider<OTPCredentialMo
                 return false;
             }
             otpCredentialModel.updateCounter(counter);
-            user.credentialManager().updateStoredCredential(otpCredentialModel);
+            getCredentialStore().updateCredential(realm, user, otpCredentialModel);
             return true;
         } else if (OTPCredentialModel.TOTP.equals(credentialData.getSubType())) {
             TimeBasedOTP validator = new TimeBasedOTP(credentialData.getAlgorithm(), credentialData.getDigits(), credentialData.getPeriod(), policy.getLookAheadWindow());
-            final boolean isValid = validator.validateTOTP(challengeResponse, secretData.getValue().getBytes(StandardCharsets.UTF_8));
-
-            if (isValid) {
-                if (policy.isCodeReusable()) return true;
-
-                SingleUseObjectProvider singleUseStore = session.getProvider(SingleUseObjectProvider.class);
-                final long validLifespan = (long) credentialData.getPeriod() * (2L * policy.getLookAheadWindow() + 1);
-                final String searchKey = credential.getId() + "." + challengeResponse;
-
-                return singleUseStore.putIfAbsent(searchKey, validLifespan);
-            }
+            return validator.validateTOTP(challengeResponse, secretData.getValue().getBytes(StandardCharsets.UTF_8));
         }
         return false;
     }

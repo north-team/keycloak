@@ -20,7 +20,6 @@ import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.keycloak.common.ClientConnection;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
@@ -40,9 +39,6 @@ import org.keycloak.services.ErrorResponse;
 import org.keycloak.services.ForbiddenException;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
 import org.keycloak.services.resources.admin.permissions.UserPermissionEvaluator;
-import org.keycloak.userprofile.UserProfile;
-import org.keycloak.userprofile.UserProfileProvider;
-import org.keycloak.utils.SearchQueryUtils;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -56,18 +52,10 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.keycloak.models.utils.KeycloakModelUtils.findGroupByPath;
-import static org.keycloak.userprofile.UserProfileContext.USER_API;
 
 /**
  * Base resource for managing users
@@ -116,8 +104,22 @@ public class UsersResource {
         // first check if user has manage rights
         try {
             auth.users().requireManage();
-        } catch (ForbiddenException exception) {
-            if (!canCreateGroupMembers(rep)) {
+        }
+        catch (ForbiddenException exception) {
+            // if user does not have manage rights, fallback to fine grain admin permissions per group
+            if (rep.getGroups() != null) {
+                // if groups is part of the user rep, check if admin has manage_members and manage_membership on each group
+                for (String groupPath : rep.getGroups()) {
+                    GroupModel group = KeycloakModelUtils.findGroupByPath(realm, groupPath);
+                    if (group != null) {
+                        auth.groups().requireManageMembers(group);
+                        auth.groups().requireManageMembership(group);
+                    } else {
+                        return ErrorResponse.error(String.format("Group %s not found", groupPath), Response.Status.BAD_REQUEST);
+                    }
+                }
+            } else {
+                // propagate exception if no group specified
                 throw exception;
             }
         }
@@ -131,12 +133,12 @@ public class UsersResource {
         }
 
         // Double-check duplicated username and email here due to federation
-        if (session.users().getUserByUsername(realm, username) != null) {
+        if (session.users().getUserByUsername(username, realm) != null) {
             return ErrorResponse.exists("User exists with same username");
         }
         if (rep.getEmail() != null && !realm.isDuplicateEmailsAllowed()) {
             try {
-                if(session.users().getUserByEmail(realm, rep.getEmail()) != null) {
+                if(session.users().getUserByEmail(rep.getEmail(), realm) != null) {
                     return ErrorResponse.exists("User exists with same email");
                 }
             } catch (ModelDuplicateException e) {
@@ -144,19 +146,15 @@ public class UsersResource {
             }
         }
 
-        UserProfileProvider profileProvider = session.getProvider(UserProfileProvider.class);
-
-        UserProfile profile = profileProvider.create(USER_API, rep.toAttributes());
-
         try {
-            Response response = UserResource.validateUserProfile(profile, null, session);
+            Response response = UserResource.validateUserProfile(null, rep, session);
             if (response != null) {
                 return response;
             }
 
-            UserModel user = profile.create();
+            UserModel user = session.users().addUser(realm, username);
 
-            UserResource.updateUserFromRep(profile, user, rep, session, false);
+            UserResource.updateUserFromRep(user, rep, session, false);
             RepresentationToModel.createFederatedIdentities(rep, session, realm, user);
             RepresentationToModel.createGroups(rep, realm, user);
 
@@ -186,32 +184,6 @@ public class UsersResource {
             return ErrorResponse.error("Could not create user", Response.Status.BAD_REQUEST);
         }
     }
-
-    private boolean canCreateGroupMembers(UserRepresentation rep) {
-        if (!Profile.isFeatureEnabled(Profile.Feature.ADMIN_FINE_GRAINED_AUTHZ)) {
-            return false;
-        }
-
-        List<GroupModel> groups = Optional.ofNullable(rep.getGroups())
-                .orElse(Collections.emptyList())
-                .stream().map(path -> findGroupByPath(realm, path))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        if (groups.isEmpty()) {
-            return false;
-        }
-
-        // if groups is part of the user rep, check if admin has manage_members and manage_membership on each group
-        // an exception is thrown in case the current user does not have permissions to manage any of the groups
-        for (GroupModel group : groups) {
-            auth.groups().requireManageMembers(group);
-            auth.groups().requireManageMembership(group);
-        }
-
-        return true;
-    }
-
     /**
      * Get representation of the user
      *
@@ -220,7 +192,7 @@ public class UsersResource {
      */
     @Path("{id}")
     public UserResource user(final @PathParam("id") String id) {
-        UserModel user = session.users().getUserById(realm, id);
+        UserModel user = session.users().getUserById(id, realm);
         if (user == null) {
             // we do this to make sure somebody can't phish ids
             if (auth.users().canQuery()) throw new NotFoundException("User not found");
@@ -235,7 +207,7 @@ public class UsersResource {
     /**
      * Get users
      *
-     * Returns a stream of users, filtered according to query parameters.
+     * Returns a stream of users, filtered according to query parameters
      *
      * @param search A String contained in username, first or last name, or email
      * @param last A String contained in lastName, or the complete lastName, if param "exact" is true
@@ -250,7 +222,6 @@ public class UsersResource {
      * @param enabled Boolean representing if user is enabled or not
      * @param briefRepresentation Boolean which defines whether brief representations are returned (default: false)
      * @param exact Boolean which defines whether the params "last", "first", "email" and "username" must match exactly
-     * @param searchQuery A query to search for custom attributes, in the format 'key1:value2 key2:value2'
      * @return a non-null {@code Stream} of users
      */
     @GET
@@ -268,8 +239,7 @@ public class UsersResource {
                                                @QueryParam("max") Integer maxResults,
                                                @QueryParam("enabled") Boolean enabled,
                                                @QueryParam("briefRepresentation") Boolean briefRepresentation,
-                                               @QueryParam("exact") Boolean exact,
-                                               @QueryParam("q") String searchQuery) {
+                                               @QueryParam("exact") Boolean exact) {
         UserPermissionEvaluator userPermissionEvaluator = auth.users();
 
         userPermissionEvaluator.requireQuery();
@@ -277,15 +247,11 @@ public class UsersResource {
         firstResult = firstResult != null ? firstResult : -1;
         maxResults = maxResults != null ? maxResults : Constants.DEFAULT_MAX_RESULTS;
 
-        Map<String, String> searchAttributes = searchQuery == null
-                ? Collections.emptyMap()
-                : SearchQueryUtils.getFields(searchQuery);
-
         Stream<UserModel> userModels = Stream.empty();
         if (search != null) {
             if (search.startsWith(SEARCH_ID_PARAMETER)) {
                 UserModel userModel =
-                        session.users().getUserById(realm, search.substring(SEARCH_ID_PARAMETER.length()).trim());
+                        session.users().getUserById(search.substring(SEARCH_ID_PARAMETER.length()).trim(), realm);
                 if (userModel != null) {
                     userModels = Stream.of(userModel);
                 }
@@ -299,7 +265,7 @@ public class UsersResource {
                         maxResults, false);
             }
         } else if (last != null || first != null || email != null || username != null || emailVerified != null
-                || idpAlias != null || idpUserId != null || enabled != null || exact != null || !searchAttributes.isEmpty()) {
+                || idpAlias != null || idpUserId != null || enabled != null || exact != null) {
                     Map<String, String> attributes = new HashMap<>();
                     if (last != null) {
                         attributes.put(UserModel.LAST_NAME, last);
@@ -328,9 +294,6 @@ public class UsersResource {
                     if (exact != null) {
                         attributes.put(UserModel.EXACT, exact.toString());
                     }
-
-                    attributes.putAll(searchAttributes);
-
                     return searchForUser(attributes, realm, userPermissionEvaluator, briefRepresentation, firstResult,
                             maxResults, true);
                 } else {
@@ -361,7 +324,6 @@ public class UsersResource {
      * @param first    first name filter
      * @param email    email filter
      * @param username username filter
-     * @param enabled Boolean representing if user is enabled or not
      * @return the number of users that match the given criteria
      */
     @Path("count")
@@ -373,21 +335,20 @@ public class UsersResource {
                                  @QueryParam("firstName") String first,
                                  @QueryParam("email") String email,
                                  @QueryParam("emailVerified") Boolean emailVerified,
-                                 @QueryParam("username") String username,
-                                 @QueryParam("enabled") Boolean enabled) {
+                                 @QueryParam("username") String username) {
         UserPermissionEvaluator userPermissionEvaluator = auth.users();
         userPermissionEvaluator.requireQuery();
 
         if (search != null) {
             if (search.startsWith(SEARCH_ID_PARAMETER)) {
-                UserModel userModel = session.users().getUserById(realm, search.substring(SEARCH_ID_PARAMETER.length()).trim());
+                UserModel userModel = session.users().getUserById(search.substring(SEARCH_ID_PARAMETER.length()).trim(), realm);
                 return userModel != null && userPermissionEvaluator.canView(userModel) ? 1 : 0;
             } else if (userPermissionEvaluator.canView()) {
-                return session.users().getUsersCount(realm, search.trim());
+                return session.users().getUsersCount(search.trim(), realm);
             } else {
-                return session.users().getUsersCount(realm, search.trim(), auth.groups().getGroupsWithViewPermission());
+                return session.users().getUsersCount(search.trim(), realm, auth.groups().getGroupsWithViewPermission());
             }
-        } else if (last != null || first != null || email != null || username != null || emailVerified != null || enabled != null) {
+        } else if (last != null || first != null || email != null || username != null || emailVerified != null) {
             Map<String, String> parameters = new HashMap<>();
             if (last != null) {
                 parameters.put(UserModel.LAST_NAME, last);
@@ -404,13 +365,10 @@ public class UsersResource {
             if (emailVerified != null) {
                 parameters.put(UserModel.EMAIL_VERIFIED, emailVerified.toString());
             }
-            if (enabled != null) {
-                parameters.put(UserModel.ENABLED, enabled.toString());
-            }
             if (userPermissionEvaluator.canView()) {
-                return session.users().getUsersCount(realm, parameters);
+                return session.users().getUsersCount(parameters, realm);
             } else {
-                return session.users().getUsersCount(realm, parameters, auth.groups().getGroupsWithViewPermission());
+                return session.users().getUsersCount(parameters, realm, auth.groups().getGroupsWithViewPermission());
             }
         } else if (userPermissionEvaluator.canView()) {
             return session.users().getUsersCount(realm);
@@ -419,21 +377,8 @@ public class UsersResource {
         }
     }
 
-    /**
-     * Get representation of the user
-     *
-     * @param id User id
-     * @return
-     */
-    @Path("profile")
-    public UserProfileResource userProfile() {
-        UserProfileResource resource = new UserProfileResource(realm, auth);
-        ResteasyProviderFactory.getInstance().injectProperties(resource);
-        return resource;
-    }
-
     private Stream<UserRepresentation> searchForUser(Map<String, String> attributes, RealmModel realm, UserPermissionEvaluator usersEvaluator, Boolean briefRepresentation, Integer firstResult, Integer maxResults, Boolean includeServiceAccounts) {
-        attributes.put(UserModel.INCLUDE_SERVICE_ACCOUNT, includeServiceAccounts.toString());
+        session.setAttribute(UserModel.INCLUDE_SERVICE_ACCOUNT, includeServiceAccounts);
 
         if (!auth.users().canView()) {
             Set<String> groupModels = auth.groups().getGroupsWithViewPermission();
@@ -443,7 +388,7 @@ public class UsersResource {
             }
         }
 
-        Stream<UserModel> userModels = session.users().searchForUserStream(realm, attributes, firstResult, maxResults);
+        Stream<UserModel> userModels = session.users().searchForUserStream(attributes, realm, firstResult, maxResults);
         return toRepresentation(realm, usersEvaluator, briefRepresentation, userModels);
     }
 

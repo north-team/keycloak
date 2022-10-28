@@ -24,8 +24,6 @@ public interface OAuth2Constants {
 
     String CODE = "code";
 
-    String TOKEN = "token";
-
     String CLIENT_ID = "client_id";
 
     String CLIENT_SECRET = "client_secret";
@@ -35,10 +33,6 @@ public interface OAuth2Constants {
     String ERROR_DESCRIPTION = "error_description";
 
     String REDIRECT_URI = "redirect_uri";
-
-    String POST_LOGOUT_REDIRECT_URI = "post_logout_redirect_uri";
-
-    String ID_TOKEN_HINT = "id_token_hint";
 
     String DISPLAY = "display";
 
@@ -51,10 +45,6 @@ public interface OAuth2Constants {
     String RESPONSE_TYPE = "response_type";
 
     String ACCESS_TOKEN = "access_token";
-
-    String TOKEN_TYPE = "token_type";
-
-    String EXPIRES_IN = "expires_in";
 
     String ID_TOKEN = "id_token";
 
@@ -113,15 +103,11 @@ public interface OAuth2Constants {
     String PKCE_METHOD_PLAIN = "plain";
     String PKCE_METHOD_S256 = "S256";
 
-    // https://tools.ietf.org/html/rfc8693#section-2.1
     String TOKEN_EXCHANGE_GRANT_TYPE="urn:ietf:params:oauth:grant-type:token-exchange";
     String AUDIENCE="audience";
-    String RESOURCE="resource";
     String REQUESTED_SUBJECT="requested_subject";
     String SUBJECT_TOKEN="subject_token";
     String SUBJECT_TOKEN_TYPE="subject_token_type";
-    String ACTOR_TOKEN="actor_token";
-    String ACTOR_TOKEN_TYPE="actor_token_type";
     String REQUESTED_TOKEN_TYPE="requested_token_type";
     String ISSUED_TOKEN_TYPE="issued_token_type";
     String REQUESTED_ISSUER="requested_issuer";
@@ -134,17 +120,8 @@ public interface OAuth2Constants {
 
     String UMA_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:uma-ticket";
 
-    // https://tools.ietf.org/html/draft-ietf-oauth-device-flow-15#section-3.4
-    String DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
-    String DEVICE_CODE = "device_code";
 
-    String CIBA_GRANT_TYPE = "urn:openid:params:grant-type:ciba";
-
-    String INTERVAL = "interval";
-    String USER_CODE = "user_code";
-
-    // https://openid.net/specs/openid-financial-api-jarm-ID1.html
-    String RESPONSE = "response";
+    String DISPLAY_CONSOLE = "console";
 }
 
 

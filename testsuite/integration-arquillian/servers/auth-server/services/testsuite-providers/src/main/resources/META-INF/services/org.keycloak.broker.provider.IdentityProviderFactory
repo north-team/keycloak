@@ -16,4 +16,3 @@
 #
 
 org.keycloak.testsuite.broker.oidc.LegacyIdIdentityProviderFactory
-org.keycloak.testsuite.broker.oidc.TestKeycloakOidcIdentityProviderFactory

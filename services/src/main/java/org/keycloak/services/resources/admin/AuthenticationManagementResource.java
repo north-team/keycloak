@@ -37,11 +37,9 @@ import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RequiredActionProviderModel;
-import org.keycloak.models.utils.Base32;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.models.utils.RepresentationToModel;
-import org.keycloak.provider.ConfiguredProvider;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.provider.ProviderFactory;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
@@ -104,79 +102,86 @@ public class AuthenticationManagementResource {
     /**
      * Get form providers
      *
-     * Returns a stream of form providers.
+     * Returns a list of form providers.
      */
     @Path("/form-providers")
     @GET
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
-    public Stream<Map<String, Object>> getFormProviders() {
+    public List<Map<String, Object>> getFormProviders() {
         auth.realm().requireViewRealm();
 
-        return buildProviderMetadata(session.getKeycloakSessionFactory().getProviderFactoriesStream(FormAuthenticator.class));
+        List<ProviderFactory> factories = session.getKeycloakSessionFactory().getProviderFactories(FormAuthenticator.class);
+        return buildProviderMetadata(factories);
     }
 
     /**
      * Get authenticator providers
      *
-     * Returns a stream of authenticator providers.
+     * Returns a list of authenticator providers.
      */
     @Path("/authenticator-providers")
     @GET
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
-    public Stream<Map<String, Object>> getAuthenticatorProviders() {
+    public List<Map<String, Object>> getAuthenticatorProviders() {
         auth.realm().requireViewRealm();
 
-        return buildProviderMetadata(session.getKeycloakSessionFactory().getProviderFactoriesStream(Authenticator.class));
+        List<ProviderFactory> factories = session.getKeycloakSessionFactory().getProviderFactories(Authenticator.class);
+        return buildProviderMetadata(factories);
     }
 
     /**
      * Get client authenticator providers
      *
-     * Returns a stream of client authenticator providers.
+     * Returns a list of client authenticator providers.
      */
     @Path("/client-authenticator-providers")
     @GET
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
-    public Stream<Map<String, Object>> getClientAuthenticatorProviders() {
+    public List<Map<String, Object>> getClientAuthenticatorProviders() {
         auth.realm().requireViewClientAuthenticatorProviders();
 
-        return buildProviderMetadata(session.getKeycloakSessionFactory().getProviderFactoriesStream(ClientAuthenticator.class));
+        List<ProviderFactory> factories = session.getKeycloakSessionFactory().getProviderFactories(ClientAuthenticator.class);
+        return buildProviderMetadata(factories);
     }
 
-    public Stream<Map<String, Object>> buildProviderMetadata(Stream<ProviderFactory> factories) {
-        return factories.map(factory -> {
+    public List<Map<String, Object>> buildProviderMetadata(List<ProviderFactory> factories) {
+        List<Map<String, Object>> providers = new LinkedList<>();
+        for (ProviderFactory factory : factories) {
             Map<String, Object> data = new HashMap<>();
             data.put("id", factory.getId());
             ConfigurableAuthenticatorFactory configured = (ConfigurableAuthenticatorFactory)factory;
             data.put("description", configured.getHelpText());
             data.put("displayName", configured.getDisplayType());
-            return data;
-        });
+
+            providers.add(data);
+        }
+        return providers;
     }
 
     /**
      * Get form action providers
      *
-     * Returns a stream of form action providers.
+     * Returns a list of form action providers.
      */
     @Path("/form-action-providers")
     @GET
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
-    public Stream<Map<String, Object>> getFormActionProviders() {
+    public List<Map<String, Object>> getFormActionProviders() {
         auth.realm().requireViewRealm();
 
-        return buildProviderMetadata(session.getKeycloakSessionFactory().getProviderFactoriesStream(FormAction.class));
+        List<ProviderFactory> factories = session.getKeycloakSessionFactory().getProviderFactories(FormAction.class);
+        return buildProviderMetadata(factories);
     }
 
 
     /**
      * Get authentication flows
      *
-     * Returns a stream of authentication flows.
+     * Returns a list of authentication flows.
      */
     @Path("/flows")
     @GET
@@ -408,7 +413,7 @@ public class AuthenticationManagementResource {
 
         AuthenticationFlowModel parentFlow = realm.getFlowByAlias(flowAlias);
         if (parentFlow == null) {
-            return ErrorResponse.error("Parent flow doesn't exist", Response.Status.BAD_REQUEST);
+            return ErrorResponse.error("Parent flow doesn't exists", Response.Status.BAD_REQUEST);
         }
         String alias = data.get("alias");
         String type = data.get("type");
@@ -430,9 +435,7 @@ public class AuthenticationManagementResource {
         execution.setFlowId(newFlow.getId());
         execution.setRequirement(AuthenticationExecutionModel.Requirement.DISABLED);
         execution.setAuthenticatorFlow(true);
-        if (type.equals("form-flow")) {
-            execution.setAuthenticator(provider);
-        }
+        execution.setAuthenticator(provider);
         execution.setPriority(getNextPriority(parentFlow));
         execution = realm.addAuthenticatorExecution(execution);
 
@@ -464,7 +467,7 @@ public class AuthenticationManagementResource {
 
         AuthenticationFlowModel parentFlow = realm.getFlowByAlias(flowAlias);
         if (parentFlow == null) {
-            throw new BadRequestException("Parent flow doesn't exist");
+            throw new BadRequestException("Parent flow doesn't exists");
         }
         if (parentFlow.isBuiltIn()) {
             throw new BadRequestException("It is illegal to add execution to a built in flow");
@@ -498,19 +501,6 @@ public class AuthenticationManagementResource {
         execution.setPriority(getNextPriority(parentFlow));
 
         execution = realm.addAuthenticatorExecution(execution);
-
-        if (f instanceof ConfiguredProvider) {
-            ConfiguredProvider internalProviderFactory = (ConfiguredProvider) f;
-            AuthenticatorConfigModel config = internalProviderFactory.getConfig();
-
-            if (config != null) {
-                // creates a default configuration if the factory defines one
-                // useful for internal providers that already provide a built-in configuration
-                AuthenticatorConfigRepresentation configRepresentation = ModelToRepresentation.toRepresentation(
-                        config);
-                newExecutionConfig(execution.getId(), configRepresentation).close();
-            }
-        }
 
         data.put("id", execution.getId());
         adminEvent.operation(OperationType.CREATE).resource(ResourceType.AUTH_EXECUTION).resourcePath(session.getContext().getUri()).representation(data).success();
@@ -581,10 +571,6 @@ public class AuthenticationManagementResource {
             } else {
                 String providerId = execution.getAuthenticator();
                 ConfigurableAuthenticatorFactory factory = CredentialHelper.getConfigurableAuthenticatorFactory(session, providerId);
-                if (factory == null) {
-                    logger.warnf("Cannot find authentication provider implementation with provider ID '%s'", providerId);
-                    throw new NotFoundException("Could not find authenticator provider");
-                }
                 rep.setDisplayName(factory.getDisplayType());
                 rep.setConfigurable(factory.isConfigurable());
                 for (AuthenticationExecutionModel.Requirement choice : factory.getRequirementChoices()) {
@@ -604,15 +590,7 @@ public class AuthenticationManagementResource {
                 }
 
                 rep.setRequirement(execution.getRequirement().name());
-
-                providerId = execution.getAuthenticator();
-
-                // encode the provider id in case the provider is a script deployed to the server to make sure it can be used as path parameters without break the URL syntax
-                if (providerId.startsWith("script-")) {
-                    providerId = Base32.encode(providerId.getBytes());
-                }
-
-                rep.setProviderId(providerId);
+                rep.setProviderId(execution.getAuthenticator());
                 rep.setAuthenticationConfig(execution.getAuthenticatorConfig());
                 result.add(rep);
             }
@@ -912,7 +890,7 @@ public class AuthenticationManagementResource {
     /**
      * Get unregistered required actions
      *
-     * Returns a stream of unregistered required actions.
+     * Returns a list of unregistered required actions.
      */
     @Path("unregistered-required-actions")
     @GET
@@ -924,7 +902,8 @@ public class AuthenticationManagementResource {
         Set<String> providerIds = realm.getRequiredActionProvidersStream()
                 .map(RequiredActionProviderModel::getProviderId).collect(Collectors.toSet());
 
-        return session.getKeycloakSessionFactory().getProviderFactoriesStream(RequiredActionProvider.class)
+        return session.getKeycloakSessionFactory().getProviderFactories(RequiredActionProvider.class)
+                .stream()
                 .filter(factory -> !providerIds.contains(factory.getId()))
                 .map(factory -> {
                     RequiredActionFactory r = (RequiredActionFactory) factory;
@@ -971,7 +950,7 @@ public class AuthenticationManagementResource {
     /**
      * Get required actions
      *
-     * Returns a stream of required actions.
+     * Returns a list of required actions.
      */
     @Path("required-actions")
     @GET
@@ -1140,16 +1119,9 @@ public class AuthenticationManagementResource {
         auth.realm().requireViewRealm();
 
         ConfigurableAuthenticatorFactory factory = CredentialHelper.getConfigurableAuthenticatorFactory(session, providerId);
-
-        if (factory == null) {
-            providerId = new String(Base32.decode(providerId));
-            factory = CredentialHelper.getConfigurableAuthenticatorFactory(session, providerId);
-        }
-
         if (factory == null) {
             throw new NotFoundException("Could not find authenticator provider");
         }
-
         AuthenticatorConfigInfoRepresentation rep = new AuthenticatorConfigInfoRepresentation();
         rep.setProviderId(providerId);
         rep.setName(factory.getDisplayType());
@@ -1177,15 +1149,24 @@ public class AuthenticationManagementResource {
     public Map<String, List<ConfigPropertyRepresentation>> getPerClientConfigDescription() {
         auth.realm().requireViewClientAuthenticatorProviders();
 
-        return session.getKeycloakSessionFactory().getProviderFactoriesStream(ClientAuthenticator.class)
-                .collect(Collectors.toMap(
-                        ProviderFactory::getId,
-                        factory -> {
-                            ClientAuthenticatorFactory clientAuthFactory = (ClientAuthenticatorFactory)
-                                    CredentialHelper.getConfigurableAuthenticatorFactory(session, factory.getId());
-                            return clientAuthFactory.getConfigPropertiesPerClient().stream()
-                                    .map(this::getConfigPropertyRep).collect(Collectors.toList());
-                        }));
+        List<ProviderFactory> factories = session.getKeycloakSessionFactory().getProviderFactories(ClientAuthenticator.class);
+
+        Map<String, List<ConfigPropertyRepresentation>> toReturn = new HashMap<>();
+        for (ProviderFactory clientAuthenticatorFactory : factories) {
+            String providerId = clientAuthenticatorFactory.getId();
+            ConfigurableAuthenticatorFactory factory = CredentialHelper.getConfigurableAuthenticatorFactory(session, providerId);
+            ClientAuthenticatorFactory clientAuthFactory = (ClientAuthenticatorFactory) factory;
+            List<ProviderConfigProperty> perClientConfigProps = clientAuthFactory.getConfigPropertiesPerClient();
+            List<ConfigPropertyRepresentation> result = new LinkedList<>();
+            for (ProviderConfigProperty prop : perClientConfigProps) {
+                ConfigPropertyRepresentation propRep = getConfigPropertyRep(prop);
+                result.add(propRep);
+            }
+
+            toReturn.put(providerId, result);
+        }
+
+        return toReturn;
     }
 
     /**

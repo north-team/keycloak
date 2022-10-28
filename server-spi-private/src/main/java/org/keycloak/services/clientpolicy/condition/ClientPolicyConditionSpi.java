@@ -21,12 +21,7 @@ import org.keycloak.provider.Provider;
 import org.keycloak.provider.ProviderFactory;
 import org.keycloak.provider.Spi;
 
-/**
- * @author <a href="mailto:takashi.norimatsu.ws@hitachi.com">Takashi Norimatsu</a>
- */
 public class ClientPolicyConditionSpi implements Spi {
-
-    public static final String SPI_NAME = "client-policy-condition";
 
     @Override
     public boolean isInternal() {
@@ -35,7 +30,7 @@ public class ClientPolicyConditionSpi implements Spi {
 
     @Override
     public String getName() {
-        return SPI_NAME;
+        return "client-policy-condition";
     }
 
     @Override

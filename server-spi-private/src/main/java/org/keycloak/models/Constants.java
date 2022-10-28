@@ -49,7 +49,6 @@ public final class Constants {
     public static final String READ_TOKEN_ROLE = "read-token";
     public static final String[] BROKER_SERVICE_ROLES = {READ_TOKEN_ROLE};
     public static final String OFFLINE_ACCESS_ROLE = OAuth2Constants.OFFLINE_ACCESS;
-    public static final String DEFAULT_ROLES_ROLE_PREFIX = "default-roles";
 
     public static final String AUTHZ_UMA_PROTECTION = "uma_protection";
     public static final String AUTHZ_UMA_AUTHORIZATION = "uma_authorization";
@@ -62,7 +61,6 @@ public final class Constants {
     // KEYCLOAK-7688 Offline Session Max for Offline Token
     // 60 days
     public static final int DEFAULT_OFFLINE_SESSION_MAX_LIFESPAN = 5184000;
-    public static final String DEFAULT_SIGNATURE_ALGORITHM = Algorithm.RS256;
 
     public static final String DEFAULT_WEBAUTHN_POLICY_SIGNATURE_ALGORITHMS = Algorithm.ES256;
     public static final String DEFAULT_WEBAUTHN_POLICY_RP_ENTITY_NAME = "keycloak";
@@ -73,6 +71,7 @@ public final class Constants {
     public static final String WEBAUTHN_PASSWORDLESS_PREFIX = "Passwordless";
 
     public static final String VERIFY_EMAIL_KEY = "VERIFY_EMAIL_KEY";
+    public static final String VERIFY_EMAIL_CODE = "VERIFY_EMAIL_CODE";
     public static final String EXECUTION = "execution";
     public static final String CLIENT_ID = "client_id";
     public static final String TAB_ID = "tab_id";
@@ -95,12 +94,6 @@ public final class Constants {
     // Prefix for user attributes used in various "context"data maps
     public static final String USER_ATTRIBUTES_PREFIX = "user.attributes.";
 
-    // Roles already granted by a mapper when updating brokered users.
-    public static final String MAPPER_GRANTED_ROLES = "MAPPER_GRANTED_ROLES";
-
-    // Groups already assigned by a mapper when updating brokered users.
-    public static final String MAPPER_GRANTED_GROUPS = "MAPPER_GRANTED_GROUPS";
-
     // Indication to admin-rest-endpoint that realm keys should be re-generated
     public static final String GENERATE = "GENERATE";
 
@@ -114,36 +107,4 @@ public final class Constants {
     public static final Pattern CFG_DELIMITER_PATTERN = Pattern.compile("\\s*" + CFG_DELIMITER + "\\s*");
 
     public static final String OFFLINE_ACCESS_SCOPE_CONSENT_TEXT = "${offlineAccessScopeConsentText}";
-
-    /**
-     * If set as an attribute in the {@link KeycloakSession}, indicates that the storage should batch write operations.
-     */
-    public static final String STORAGE_BATCH_ENABLED = "org.keycloak.storage.batch_enabled";
-
-    /**
-     * If {@code #STORAGE_BATCH_ENABLED} is set, indicates the batch size.
-     */
-    public static final String STORAGE_BATCH_SIZE = "org.keycloak.storage.batch_size";
-
-    // Client Polices Realm Attributes Keys
-    public static final String CLIENT_PROFILES = "client-policies.profiles";
-    public static final String CLIENT_POLICIES = "client-policies.policies";
-
-
-    // Authentication session note, which contains loa of current authentication in progress
-    public static final String LEVEL_OF_AUTHENTICATION = "level-of-authentication";
-
-    // Authentication session (and user session) note, which contains map with authenticated levels and the times of their authentications,
-    // so it is possible to check when particular level expires and needs to be re-authenticated
-    public static final String LOA_MAP = "loa-map";
-
-    public static final String REQUESTED_LEVEL_OF_AUTHENTICATION = "requested-level-of-authentication";
-    public static final String FORCE_LEVEL_OF_AUTHENTICATION = "force-level-of-authentication";
-    public static final String ACR_LOA_MAP = "acr.loa.map";
-    public static final String DEFAULT_ACR_VALUES = "default.acr.values";
-    public static final int MINIMUM_LOA = 0;
-    public static final int NO_LOA = -1;
-
-    public static final Boolean REALM_ATTR_USERNAME_CASE_SENSITIVE_DEFAULT = Boolean.FALSE;
-    public static final String REALM_ATTR_USERNAME_CASE_SENSITIVE = "keycloak.username-search.case-sensitive";
 }

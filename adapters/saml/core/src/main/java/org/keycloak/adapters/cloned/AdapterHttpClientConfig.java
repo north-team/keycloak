@@ -29,30 +29,29 @@ public interface AdapterHttpClientConfig {
     /**
      * Returns truststore filename.
      */
-    String getTruststore();
+    public String getTruststore();
 
     /**
      * Returns truststore password.
      */
-    String getTruststorePassword();
+    public String getTruststorePassword();
 
     /**
      * Returns keystore with client keys.
      */
-    String getClientKeystore();
+    public String getClientKeystore();
 
     /**
      * Returns keystore password.
      */
-    String getClientKeystorePassword();
+    public String getClientKeystorePassword();
 
     /**
      * Returns boolean flag whether any hostname verification is done on the server's
      * certificate, {@code true} means that verification is not done.
-     *
      * @return
      */
-    boolean isAllowAnyHostname();
+    public boolean isAllowAnyHostname();
 
     /**
      * Returns boolean flag whether any trust management and hostname verification is done.
@@ -61,30 +60,16 @@ public interface AdapterHttpClientConfig {
      * if you cannot or do not want to verify the identity of the
      * host you are communicating with.
      */
-    boolean isDisableTrustManager();
+    public boolean isDisableTrustManager();
 
     /**
      * Returns size of connection pool.
      */
-    int getConnectionPoolSize();
+    public int getConnectionPoolSize();
 
     /**
      * Returns URL of HTTP proxy.
      */
-    String getProxyUrl();
+    public String getProxyUrl();
 
-    /**
-     * Returns timeout for socket waiting for data in milliseconds.
-     */
-    long getSocketTimeout();
-
-    /**
-     * Returns timeout for establishing the connection with the remote host in milliseconds.
-     */
-    long getConnectionTimeout();
-
-    /**
-     * Returns the connection time-to-live
-     */
-    long getConnectionTTL();
 }

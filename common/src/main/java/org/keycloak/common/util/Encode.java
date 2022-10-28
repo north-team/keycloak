@@ -570,25 +570,4 @@ public class Encode
       }
    }
 
-
-   /**
-    * @param string
-    * @return URL encoded input
-    */
-   public static String urlEncode(String string) {
-      try {
-         return URLEncoder.encode(string, UTF_8);
-      } catch (UnsupportedEncodingException e) {
-         throw new RuntimeException(e);
-      }
-   }
-
-   /**
-    * @param string
-    * @return URL decoded input
-    */
-   public static String urlDecode(String string) {
-      return decode(string);
-   }
-
 }

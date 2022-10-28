@@ -16,54 +16,36 @@
  */
 package org.keycloak.models.map.client;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import org.keycloak.models.ClientModel;
 import org.keycloak.models.map.common.AbstractMapProviderFactory;
+import org.keycloak.models.ClientProvider;
 import org.keycloak.models.ClientProviderFactory;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.RoleModel;
-import org.keycloak.provider.InvalidationHandler;
-import org.keycloak.provider.InvalidationHandler.InvalidableObjectType;
-
-import static org.keycloak.models.map.common.AbstractMapProviderFactory.MapProviderObjectType.CLIENT_AFTER_REMOVE;
-import static org.keycloak.models.map.common.AbstractMapProviderFactory.MapProviderObjectType.REALM_BEFORE_REMOVE;
-import static org.keycloak.models.map.common.AbstractMapProviderFactory.MapProviderObjectType.ROLE_BEFORE_REMOVE;
+import org.keycloak.models.KeycloakSessionFactory;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import org.keycloak.models.map.storage.MapStorageProvider;
+import org.keycloak.models.map.storage.MapStorage;
 
 /**
  *
  * @author hmlnarik
  */
-public class MapClientProviderFactory extends AbstractMapProviderFactory<MapClientProvider, MapClientEntity, ClientModel> implements ClientProviderFactory<MapClientProvider>, InvalidationHandler {
+public class MapClientProviderFactory extends AbstractMapProviderFactory<ClientProvider> implements ClientProviderFactory {
 
-    private final ConcurrentHashMap<String, ConcurrentMap<String, Long>> REGISTERED_NODES_STORE = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ConcurrentMap<String, Integer>> REGISTERED_NODES_STORE = new ConcurrentHashMap<>();
 
-    public MapClientProviderFactory() {
-        super(ClientModel.class, MapClientProvider.class);
-    }
+    private MapStorage<UUID, MapClientEntity> store;
 
     @Override
-    public MapClientProvider createNew(KeycloakSession session) {
-        return new MapClientProvider(session, getStorage(session), REGISTERED_NODES_STORE);
+    public void postInit(KeycloakSessionFactory factory) {
+        MapStorageProvider sp = (MapStorageProvider) factory.getProviderFactory(MapStorageProvider.class);
+        this.store = sp.getStorage("clients", UUID.class, MapClientEntity.class);
     }
 
-    @Override
-    public String getHelpText() {
-        return "Client provider";
-    }
 
     @Override
-    public void invalidate(KeycloakSession session, InvalidableObjectType type, Object... params) {
-        if (type == REALM_BEFORE_REMOVE) {
-            create(session).preRemove((RealmModel) params[0]);
-        } else if (type == ROLE_BEFORE_REMOVE) {
-            create(session).preRemove((RealmModel) params[0], (RoleModel) params[1]);
-        } else if (type == CLIENT_AFTER_REMOVE) {
-            session.getKeycloakSessionFactory().publish(new ClientModel.ClientRemovedEvent() {
-                @Override public ClientModel getClient() { return (ClientModel) params[0]; }
-                @Override public KeycloakSession getKeycloakSession() { return session; }
-            });
-        }
+    public ClientProvider create(KeycloakSession session) {
+        return new MapClientProvider(session, store, REGISTERED_NODES_STORE);
     }
 }

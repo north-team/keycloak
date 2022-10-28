@@ -16,15 +16,12 @@
  */
 package org.keycloak.testsuite.i18n;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Locale;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.hamcrest.Matchers;
 import org.jboss.resteasy.client.jaxrs.ResteasyClient;
 import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
-import org.jboss.resteasy.client.jaxrs.engines.ApacheHttpClient43Engine;
+import org.jboss.resteasy.client.jaxrs.engines.ApacheHttpClient4Engine;
 import org.junit.Assert;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
@@ -46,8 +43,6 @@ import org.keycloak.testsuite.pages.LoginPasswordUpdatePage;
 import org.keycloak.testsuite.pages.OAuthGrantPage;
 import org.keycloak.testsuite.util.IdentityProviderBuilder;
 import org.openqa.selenium.Cookie;
-
-import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
  * @author <a href="mailto:gerbermichi@me.com">Michael Gerber</a>
@@ -122,25 +117,21 @@ public class LoginPageTest extends AbstractI18NTest {
     }
 
     @Test
-    public void acceptLanguageHeader() throws IOException {
+    public void acceptLanguageHeader() {
         ProfileAssume.assumeCommunity();
         
-        try(CloseableHttpClient httpClient = (CloseableHttpClient) new HttpClientBuilder().build()) {
-            ApacheHttpClient43Engine engine = new ApacheHttpClient43Engine(httpClient);
-            ResteasyClient client = ((ResteasyClientBuilder) ResteasyClientBuilder.newBuilder()).httpEngine(engine).build();
+        CloseableHttpClient httpClient = (CloseableHttpClient) new HttpClientBuilder().build();
+        ApacheHttpClient4Engine engine = new ApacheHttpClient4Engine(httpClient);
+        ResteasyClient client = new ResteasyClientBuilder().httpEngine(engine).build();
 
-            loginPage.open();
+        loginPage.open();
+        Response response = client.target(driver.getCurrentUrl()).request().acceptLanguage("de").get();
+        Assert.assertTrue(response.readEntity(String.class).contains("Anmeldung bei test"));
 
-            try(Response responseDe = client.target(driver.getCurrentUrl()).request().acceptLanguage("de").get()) {
-                Assert.assertTrue(responseDe.readEntity(String.class).contains("Anmeldung bei test"));
+        response = client.target(driver.getCurrentUrl()).request().acceptLanguage("en").get();
+        Assert.assertTrue(response.readEntity(String.class).contains("Sign in to test"));
 
-                try(Response responseEn = client.target(driver.getCurrentUrl()).request().acceptLanguage("en").get()) {
-                    Assert.assertTrue(responseEn.readEntity(String.class).contains("Sign in to test"));
-                }
-            }
-
-            client.close();
-        }
+        client.close();
     }
 
     @Test
@@ -226,9 +217,7 @@ public class LoginPageTest extends AbstractI18NTest {
         UserRepresentation userRep = user.toRepresentation();
         Assert.assertEquals("de", userRep.getAttributes().get("locale").get(0));
 
-        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
-        String idTokenHint = oauth.doAccessTokenRequest(code, "password").getIdToken();
-        appPage.logout(idTokenHint);
+        appPage.logout();
 
         loginPage.open();
 
@@ -244,9 +233,7 @@ public class LoginPageTest extends AbstractI18NTest {
         userRep = user.toRepresentation();
         Assert.assertNull(userRep.getAttributes());
 
-        code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
-        idTokenHint = oauth.doAccessTokenRequest(code, "password").getIdToken();
-        appPage.logout(idTokenHint);
+        appPage.logout();
 
         loginPage.open();
 
@@ -255,45 +242,6 @@ public class LoginPageTest extends AbstractI18NTest {
         Assert.assertNull(localeCookie);
     }
 
-    // KEYCLOAK-18590
-    @Test
-    public void realmLocalizationMessagesAreNotCachedWithinTheTheme() throws IOException {
-        final String locale = Locale.ENGLISH.toLanguageTag();
-
-        final String realmLocalizationMessageKey = "loginAccountTitle";
-        final String realmLocalizationMessageValue = "Localization Test";
-
-        try(CloseableHttpClient httpClient = (CloseableHttpClient) new HttpClientBuilder().build()) {
-            ApacheHttpClient43Engine engine = new ApacheHttpClient43Engine(httpClient);
-
-            testRealm().localization().saveRealmLocalizationText(locale, realmLocalizationMessageKey,
-                    realmLocalizationMessageValue);
-
-            ResteasyClient client = ((ResteasyClientBuilder) ResteasyClientBuilder.newBuilder()).httpEngine(engine).build();
-
-            loginPage.open();
-
-            try(Response responseWithLocalization =
-                    client.target(driver.getCurrentUrl()).request().acceptLanguage(locale).get()) {
-
-                assertThat(responseWithLocalization.readEntity(String.class),
-                        Matchers.containsString(realmLocalizationMessageValue));
-
-                testRealm().localization().deleteRealmLocalizationText(locale, realmLocalizationMessageKey);
-
-                loginPage.open();
-
-                try(Response responseWithoutLocalization =
-                        client.target(driver.getCurrentUrl()).request().acceptLanguage(locale).get()) {
-
-                    assertThat(responseWithoutLocalization.readEntity(String.class),
-                            Matchers.not(Matchers.containsString(realmLocalizationMessageValue)));
-                }
-            }
-
-            client.close();
-        }
-    }
 
     private void switchLanguageToGermanAndBack(String expectedEnglishMessage, String expectedGermanMessage, LanguageComboboxAwarePage page) {
         // Switch language to Deutsch

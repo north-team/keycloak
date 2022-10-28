@@ -17,20 +17,27 @@
 
 package org.keycloak.saml;
 
-import java.net.URI;
-import java.util.Arrays;
-import java.util.List;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-
 import org.keycloak.dom.saml.v2.metadata.EndpointType;
 import org.keycloak.dom.saml.v2.metadata.EntityDescriptorType;
 import org.keycloak.dom.saml.v2.metadata.IndexedEndpointType;
 import org.keycloak.dom.saml.v2.metadata.KeyDescriptorType;
 import org.keycloak.dom.saml.v2.metadata.KeyTypes;
 import org.keycloak.dom.saml.v2.metadata.SPSSODescriptorType;
+
+import java.io.StringWriter;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamWriter;
+import org.keycloak.saml.common.util.StaxUtil;
+import org.keycloak.saml.common.exceptions.ProcessingException;
 import org.keycloak.saml.processing.core.saml.v2.common.IDGenerator;
+import org.keycloak.saml.processing.core.saml.v2.writers.SAMLMetadataWriter;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -43,10 +50,16 @@ import static org.keycloak.saml.common.constants.JBossSAMLURIConstants.PROTOCOL_
  */
 public class SPMetadataDescriptor {
 
-    public static EntityDescriptorType buildSPdescriptor(URI loginBinding, URI logoutBinding, URI assertionEndpoint, URI logoutEndpoint,
+    public static String getSPDescriptor(URI binding, URI assertionEndpoint, URI logoutEndpoint,
         boolean wantAuthnRequestsSigned, boolean wantAssertionsSigned, boolean wantAssertionsEncrypted,
-        String entityId, String nameIDPolicyFormat, List<Element> signingCerts, List<Element> encryptionCerts)
+        String entityId, String nameIDPolicyFormat, List<Element> signingCerts, List<Element> encryptionCerts) 
+        throws XMLStreamException, ProcessingException, ParserConfigurationException
     {
+      
+        StringWriter sw = new StringWriter();
+        XMLStreamWriter writer = StaxUtil.getXMLStreamWriter(sw);
+        SAMLMetadataWriter metadataWriter = new SAMLMetadataWriter(writer);
+
         EntityDescriptorType entityDescriptor = new EntityDescriptorType(entityId);
         entityDescriptor.setID(IDGenerator.create("ID_"));
 
@@ -54,7 +67,7 @@ public class SPMetadataDescriptor {
         spSSODescriptor.setAuthnRequestsSigned(wantAuthnRequestsSigned);
         spSSODescriptor.setWantAssertionsSigned(wantAssertionsSigned);
         spSSODescriptor.addNameIDFormat(nameIDPolicyFormat);
-        spSSODescriptor.addSingleLogoutService(new EndpointType(logoutBinding, logoutEndpoint));
+        spSSODescriptor.addSingleLogoutService(new EndpointType(binding, logoutEndpoint));
 
         if (wantAuthnRequestsSigned && signingCerts != null) {
             for (Element key: signingCerts)
@@ -76,14 +89,15 @@ public class SPMetadataDescriptor {
             }
         }
 
-        IndexedEndpointType assertionConsumerEndpoint = new IndexedEndpointType(loginBinding, assertionEndpoint);
+        IndexedEndpointType assertionConsumerEndpoint = new IndexedEndpointType(binding, assertionEndpoint);
         assertionConsumerEndpoint.setIsDefault(true);
         assertionConsumerEndpoint.setIndex(1);
         spSSODescriptor.addAssertionConsumerService(assertionConsumerEndpoint);
 
         entityDescriptor.addChoiceType(new EntityDescriptorType.EDTChoiceType(Arrays.asList(new EntityDescriptorType.EDTDescriptorChoiceType(spSSODescriptor))));
+        metadataWriter.writeEntityDescriptor(entityDescriptor);
 
-        return entityDescriptor;
+        return sw.toString();
     }
 
     public static Element buildKeyInfoElement(String keyName, String pemEncodedCertificate)

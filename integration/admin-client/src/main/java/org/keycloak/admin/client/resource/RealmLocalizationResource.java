@@ -23,12 +23,10 @@ import java.util.Map;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
-import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 
 public interface RealmLocalizationResource {
@@ -40,7 +38,7 @@ public interface RealmLocalizationResource {
     @Path("{locale}")
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    Map<String, String> getRealmLocalizationTexts(final @PathParam("locale") String locale,  @QueryParam("useRealmDefaultLocaleFallback") Boolean useRealmDefaultLocaleFallback);
+    Map<String, String> getRealmLocalizationTexts(final @PathParam("locale") String locale);
 
 
     @Path("{locale}/{key}")
@@ -61,9 +59,4 @@ public interface RealmLocalizationResource {
     @PUT
     @Consumes(MediaType.TEXT_PLAIN)
     void saveRealmLocalizationText(@PathParam("locale") String locale, @PathParam("key") String key, String text);
-
-    @Path("{locale}")
-    @POST
-    @Consumes("application/json")
-    void createOrUpdateRealmLocalizationTexts(@PathParam("locale") String locale, Map<String, String> localizationTexts);
 }

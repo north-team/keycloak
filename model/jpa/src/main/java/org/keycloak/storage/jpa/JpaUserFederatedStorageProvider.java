@@ -63,7 +63,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.persistence.LockModeType;
 
-import static org.keycloak.models.jpa.PaginationUtils.paginateQuery;
 import static org.keycloak.utils.StreamsUtil.closing;
 
 /**
@@ -72,7 +71,7 @@ import static org.keycloak.utils.StreamsUtil.closing;
  */
 public class JpaUserFederatedStorageProvider implements
         UserFederatedStorageProvider.Streams,
-        UserCredentialStore {
+        UserCredentialStore.Streams {
 
     protected static final Logger logger = Logger.getLogger(JpaUserFederatedStorageProvider.class);
 
@@ -212,12 +211,11 @@ public class JpaUserFederatedStorageProvider implements
         return true;
     }
 
-    @Override
+    @Override 
     public void preRemove(RealmModel realm, IdentityProviderModel provider) {
         em.createNamedQuery("deleteBrokerLinkByIdentityProvider")
                 .setParameter("realmId", realm.getId())
-                .setParameter("providerAlias", provider.getAlias())
-                .executeUpdate();
+                .setParameter("providerAlias", provider.getAlias());
     }
 
     private BrokerLinkEntity getBrokerLinkEntity(RealmModel realm, String userId, String socialProvider) {
@@ -467,12 +465,18 @@ public class JpaUserFederatedStorageProvider implements
     }
 
     @Override
-    public Stream<String> getMembershipStream(RealmModel realm, GroupModel group, Integer firstResult, Integer max) {
+    public Stream<String> getMembershipStream(RealmModel realm, GroupModel group, int firstResult, int max) {
         TypedQuery<String> query = em.createNamedQuery("fedgroupMembership", String.class)
                 .setParameter("realmId", realm.getId())
                 .setParameter("groupId", group.getId());
-
-        return closing(paginateQuery(query, firstResult, max).getResultStream());
+        if (firstResult != -1) {
+            query.setFirstResult(firstResult);
+        }
+        
+        if (max != -1) {
+            query.setMaxResults(max);
+        }
+        return closing(query.getResultStream());
     }
 
     @Override
@@ -656,10 +660,13 @@ public class JpaUserFederatedStorageProvider implements
     }
 
     @Override
-    public Stream<String> getStoredUsersStream(RealmModel realm, Integer first, Integer max) {
+    public Stream<String> getStoredUsersStream(RealmModel realm, int first, int max) {
         TypedQuery<String> query = em.createNamedQuery("getFederatedUserIds", String.class)
                 .setParameter("realmId", realm.getId());
-        return closing(paginateQuery(query, first, max).getResultStream());
+        if (first > 0)
+                query.setFirstResult(first);
+        if (max > 0) query.setMaxResults(max);
+        return closing(query.getResultStream());
     }
 
     @Override

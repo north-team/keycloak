@@ -18,6 +18,7 @@ package org.keycloak.testsuite.script;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.keycloak.common.Profile.Feature.UPLOAD_SCRIPTS;
 import static org.keycloak.testsuite.arquillian.DeploymentTargetModifier.AUTH_SERVER_CURRENT;
 
 import javax.ws.rs.core.Response;
@@ -50,6 +51,7 @@ import org.keycloak.representations.idm.authorization.PolicyRepresentation;
 import org.keycloak.representations.idm.authorization.ResourcePermissionRepresentation;
 import org.keycloak.representations.idm.authorization.ResourceRepresentation;
 import org.keycloak.representations.provider.ScriptProviderDescriptor;
+import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
 import org.keycloak.testsuite.arquillian.annotation.UncaughtServerErrorExpected;
 import org.keycloak.testsuite.authz.AbstractAuthzTest;
@@ -86,8 +88,8 @@ public class DeployedScriptPolicyTest extends AbstractAuthzTest {
     @BeforeClass
     public static void verifyEnvironment() {
         ContainerAssume.assumeNotAuthServerUndertow();
+        ContainerAssume.assumeNotAuthServerQuarkus();
     }
-
     @ArquillianResource
     private Deployer deployer;
 
@@ -107,26 +109,26 @@ public class DeployedScriptPolicyTest extends AbstractAuthzTest {
     }
 
     @Before
-    public void onBefore() throws Exception {
+    public void onBefore() {
         deployer.deploy(SCRIPT_DEPLOYMENT_NAME);
-        reconnectAdminClient();
         AuthorizationResource authorization = getAuthorizationResource();
         authorization.resources().create(new ResourceRepresentation("Default Resource"));
     }
 
     @After
-    public void onAfter() throws Exception {
+    public void onAfter() {
         deployer.undeploy(SCRIPT_DEPLOYMENT_NAME);
-        reconnectAdminClient();
     }
 
     @Test
+    @DisableFeature(value = UPLOAD_SCRIPTS, skipRestart = true)
     public void testJSPolicyProviderNotAvailable() {
         assertFalse(getAuthorizationResource().policies().policyProviders().stream().anyMatch(rep -> "js".equals(rep.getType())));
     }
 
     @Test
     @UncaughtServerErrorExpected
+    @DisableFeature(value = UPLOAD_SCRIPTS, skipRestart = true)
     public void failCreateJSPolicy() {
         JSPolicyRepresentation grantPolicy = new JSPolicyRepresentation();
 

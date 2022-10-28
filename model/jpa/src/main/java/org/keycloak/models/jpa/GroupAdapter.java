@@ -44,7 +44,7 @@ import static org.keycloak.utils.StreamsUtil.closing;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class GroupAdapter implements GroupModel , JpaModel<GroupEntity> {
+public class GroupAdapter implements GroupModel.Streams , JpaModel<GroupEntity> {
 
     protected GroupEntity group;
     protected EntityManager em;
@@ -214,9 +214,7 @@ public class GroupAdapter implements GroupModel , JpaModel<GroupEntity> {
 
     @Override
     public boolean hasRole(RoleModel role) {
-        if (RoleUtils.hasRole(getRoleMappingsStream(), role)) return true;
-        GroupModel parent = getParent();
-        return parent != null && parent.hasRole(role);
+        return RoleUtils.hasRole(getRoleMappingsStream(), role);
     }
 
     protected TypedQuery<GroupRoleMappingEntity> getGroupRoleMappingEntityTypedQuery(RoleModel role) {
@@ -228,7 +226,7 @@ public class GroupAdapter implements GroupModel , JpaModel<GroupEntity> {
 
     @Override
     public void grantRole(RoleModel role) {
-        if (hasDirectRole(role)) return;
+        if (hasRole(role)) return;
         GroupRoleMappingEntity entity = new GroupRoleMappingEntity();
         entity.setGroup(getEntity());
         entity.setRoleId(role.getId());

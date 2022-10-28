@@ -19,6 +19,7 @@ package org.keycloak.testsuite.actions;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.jboss.arquillian.graphene.page.Page;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
@@ -31,29 +32,15 @@ import org.keycloak.testsuite.util.WaitUtils;
 import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.keycloak.OAuth2Constants.REDIRECT_URI;
-import static org.keycloak.OAuth2Constants.RESPONSE_TYPE;
-import static org.keycloak.OAuth2Constants.SCOPE;
-import static org.keycloak.models.Constants.CLIENT_ID;
-import static org.keycloak.models.Constants.KC_ACTION;
-import static org.keycloak.models.Constants.KC_ACTION_STATUS;
 import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
 
 /**
  * @author Stan Silvert
  */
 public abstract class AbstractAppInitiatedActionTest extends AbstractTestRealmKeycloakTest {
-
-    protected static final String SUCCESS = "success";
-    protected static final String CANCELLED = "cancelled";
-
+    
     @Page
     protected LoginPage loginPage;
     
@@ -62,45 +49,48 @@ public abstract class AbstractAppInitiatedActionTest extends AbstractTestRealmKe
     
     @Rule
     public AssertEvents events = new AssertEvents(this);
-
-    protected abstract String getAiaAction();
+    
+    protected final String aiaAction;
+    
+    public AbstractAppInitiatedActionTest(String aiaAction) {
+        this.aiaAction = aiaAction;
+    }
     
     protected void doAIA() {
         UriBuilder builder = OIDCLoginProtocolService.authUrl(authServerPage.createUriBuilder());
-        String uri = builder.queryParam(KC_ACTION, getAiaAction())
-                            .queryParam(RESPONSE_TYPE, "code")
-                            .queryParam(CLIENT_ID, "test-app")
-                            .queryParam(SCOPE, "openid")
-                            .queryParam(REDIRECT_URI, getAuthServerContextRoot() + "/auth/realms/master/app/auth")
+        String uri = builder.queryParam("kc_action", this.aiaAction)
+                            .queryParam("response_type", "code")
+                            .queryParam("client_id", "test-app")
+                            .queryParam("scope", "openid")
+                            .queryParam("redirect_uri", getAuthServerContextRoot() + "/auth/realms/master/app/auth")
                             .build(TEST_REALM_NAME).toString();
         driver.navigate().to(uri);
         WaitUtils.waitForPageToLoad();
     }
 
     protected void assertKcActionStatus(String expectedStatus) {
-        assertThat(appPage.getRequestType(),is(RequestType.AUTH_RESPONSE));
+        Assert.assertEquals(RequestType.AUTH_RESPONSE, appPage.getRequestType());
 
-        final URI url;
+        URI url = null;
         try {
             url = new URI(this.driver.getCurrentUrl());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-
-        List<NameValuePair> pairs = URLEncodedUtils.parse(url, StandardCharsets.UTF_8);
+        List<NameValuePair> pairs = URLEncodedUtils.parse(url, "UTF-8");
         String kcActionStatus = null;
         for (NameValuePair p : pairs) {
-            if (p.getName().equals(KC_ACTION_STATUS)) {
+            if (p.getName().equals("kc_action_status")) {
                 kcActionStatus = p.getValue();
                 break;
             }
         }
-        assertThat(expectedStatus, is(kcActionStatus));
+        Assert.assertEquals(expectedStatus, kcActionStatus);
     }
     
     protected void assertSilentCancelMessage() {
         String url = this.driver.getCurrentUrl();
-        assertThat("Expected no 'error=' in url", url, not(containsString("error=")));
-        assertThat("Expected no 'error_description=' in url", url, not(containsString("error_description=")));
+        Assert.assertFalse("Expected no 'error=' in url", url.contains("error="));
+        Assert.assertFalse("Expected no 'error_description=' in url", url.contains("error_description="));
     }
 }

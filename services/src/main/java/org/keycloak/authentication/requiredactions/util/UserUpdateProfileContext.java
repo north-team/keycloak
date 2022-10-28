@@ -17,13 +17,13 @@
 
 package org.keycloak.authentication.requiredactions.util;
 
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
-import org.keycloak.common.Profile;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.userprofile.UserProfileContext;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -37,15 +37,10 @@ public class UserUpdateProfileContext implements UpdateProfileContext {
         this.realm = realm;
         this.user = user;
     }
-    
+
     @Override
     public boolean isEditUsernameAllowed() {
         return realm.isEditUsernameAllowed();
-    }
-    
-    @Override
-    public UserProfileContext getUserProfileContext() {
-        return UserProfileContext.UPDATE_PROFILE;
     }
 
     @Override
@@ -56,11 +51,6 @@ public class UserUpdateProfileContext implements UpdateProfileContext {
     @Override
     public void setUsername(String username) {
         user.setUsername(username);
-    }
-
-    @Override
-    public boolean isEditEmailAllowed() {
-        return !Profile.isFeatureEnabled(Profile.Feature.UPDATE_EMAIL);
     }
 
     @Override

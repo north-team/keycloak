@@ -20,6 +20,7 @@ package org.keycloak.testsuite.forms;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.jboss.arquillian.drone.api.annotation.Drone;
 import org.jboss.arquillian.graphene.page.Page;
@@ -32,12 +33,15 @@ import org.keycloak.authentication.authenticators.browser.OTPFormAuthenticatorFa
 import org.keycloak.authentication.authenticators.browser.PasswordFormFactory;
 import org.keycloak.authentication.authenticators.browser.UsernameFormFactory;
 import org.keycloak.authentication.authenticators.browser.WebAuthnAuthenticatorFactory;
+import org.keycloak.common.Profile;
 import org.keycloak.events.Details;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.utils.TimeBasedOTP;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
 import org.keycloak.testsuite.AssertEvents;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 import org.keycloak.testsuite.client.KeycloakTestingClient;
 import org.keycloak.testsuite.pages.ErrorPage;
 import org.keycloak.testsuite.pages.LoginPage;
@@ -50,6 +54,7 @@ import org.keycloak.testsuite.util.OAuthClient;
 import org.openqa.selenium.WebDriver;
 
 import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
+import static org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer.REMOTE;
 
 /**
  * Test various scenarios for multi-factor login. Test that "Try another way" link works as expected
@@ -57,6 +62,7 @@ import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
  *
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
+@AuthServerContainerExclude(REMOTE)
 public class MultiFactorAuthenticationTest extends AbstractTestRealmKeycloakTest {
 
     @ArquillianResource
@@ -237,6 +243,7 @@ public class MultiFactorAuthenticationTest extends AbstractTestRealmKeycloakTest
     // Test for the case when user can authenticate either with: WebAuthn OR (Password AND OTP)
     // WebAuthn is not enabled for the user, so he needs to use password AND OTP
     @Test
+    @EnableFeature(value = Profile.Feature.WEB_AUTHN, skipRestart = true, onlyForProduct = true)
     public void testAlternativeMechanismsInDifferentSubflows_firstMechanismUnavailable() {
         final String newFlowAlias = "browser - alternative mechanisms";
         testingClient.server("test").run(session -> FlowUtil.inCurrentRealm(session).copyBrowserFlow(newFlowAlias));

@@ -212,7 +212,11 @@ public class ElytronSamlSessionStore implements SamlSessionStore, ElytronTokeSto
         if (!scope.exists()) {
             scope.create();
         }
-        scope.setAttachment(SAML_REDIRECT_URI, exchange.getRequest().getURI());
+
+        KeycloakUriBuilder uriBuilder = KeycloakUriBuilder.fromUri(exchange.getURI()).replaceQuery(exchange.getURI().getQuery());
+        String uri = uriBuilder.build().toString();
+
+        scope.setAttachment(SAML_REDIRECT_URI, uri);
     }
 
     @Override

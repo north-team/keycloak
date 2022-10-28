@@ -45,6 +45,7 @@
 				var nodeChildren = attrs.nodeChildren || 'children';
 
 				//tree template
+
                 var template =
                     '<ul>' +
                     '<li data-ng-repeat="node in ' + treeModel + '">' +
@@ -53,6 +54,7 @@
                     '<div data-ng-hide="node.collapsed" data-tree-id="' + treeId + '" data-tree-model="node.' + nodeChildren + '" data-node-id=' + nodeId + ' data-node-label=' + nodeLabel + ' data-node-children=' + nodeChildren + '></div>' +
                     '</li>' +
                     '</ul>';
+
 
                 //check tree id, tree model
 				if( treeId && treeModel ) {

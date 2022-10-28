@@ -17,8 +17,6 @@
 
 package org.keycloak.broker.provider;
 
-import org.jboss.logging.Logger;
-import org.keycloak.broker.provider.mappersync.ConfigSyncEventListener;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
@@ -30,11 +28,6 @@ import org.keycloak.models.UserModel;
  * @version $Revision: 1 $
  */
 public abstract class AbstractIdentityProviderMapper implements IdentityProviderMapper {
-
-    private static final Logger LOG = Logger.getLogger(AbstractIdentityProviderMapper.class);
-
-    private static volatile KeycloakSessionFactory keycloakSessionFactory;
-
     @Override
     public void close() {
 
@@ -52,24 +45,7 @@ public abstract class AbstractIdentityProviderMapper implements IdentityProvider
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
-        registerConfigSyncEventListenerOnce(factory);
-    }
 
-    private void registerConfigSyncEventListenerOnce(KeycloakSessionFactory factory) {
-        /*
-         * Make sure that the config sync listener is registered only once for a session factory. It would also be
-         * possible to register it only once per VM, but that does not work fine in integration tests.
-         */
-        if (keycloakSessionFactory != factory) {
-            synchronized (AbstractIdentityProviderMapper.class) {
-                if (keycloakSessionFactory != factory) {
-                    keycloakSessionFactory = factory;
-
-                    LOG.infof("Registering %s", ConfigSyncEventListener.class);
-                    factory.register(new ConfigSyncEventListener());
-                }
-            }
-        }
     }
 
     @Override

@@ -7,7 +7,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.MalformedURLException;
-import java.rmi.UnmarshalException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -42,7 +41,6 @@ import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
 import org.keycloak.common.util.Retry;
 import org.keycloak.testsuite.arquillian.annotation.JmxInfinispanCacheStatistics;
 import org.keycloak.testsuite.arquillian.annotation.JmxInfinispanChannelStatistics;
-import org.keycloak.testsuite.arquillian.containers.InfinispanServerDeployableContainer;
 import org.keycloak.testsuite.arquillian.jmx.JmxConnectorRegistry;
 import org.keycloak.testsuite.arquillian.undertow.KeycloakOnUndertow;
 import org.keycloak.testsuite.crossdc.DC;
@@ -125,9 +123,8 @@ public class CacheStatisticsControllerEnricher implements TestEnricher {
 
     private InfinispanStatistics getJGroupsChannelStatistics(JmxInfinispanChannelStatistics annotation) throws MalformedObjectNameException, IOException, MalformedURLException {
         ObjectName mbeanName = new ObjectName(String.format(
-          "%s:%stype=%s,cluster=\"%s\"",
+          "%s:type=%s,cluster=\"%s\"",
           annotation.domain().isEmpty() ? getDefaultDomain(annotation.dc().getDcIndex(), annotation.dcNodeIndex()) : InfinispanConnectionProvider.JMX_DOMAIN,
-          isLegacyInfinispan() ? "" : "manager=\"default\",",
           annotation.type(),
           annotation.cluster()
         ));
@@ -185,13 +182,9 @@ public class CacheStatisticsControllerEnricher implements TestEnricher {
         }
         
         //cache-server
-        return isLegacyInfinispan() ? "jboss.datagrid-infinispan" : "org.infinispan"; 
+        return InfinispanConnectionProvider.JMX_DOMAIN;
     }
-    
-    private boolean isLegacyInfinispan() { // infinispan 9 or lower
-        return Boolean.parseBoolean(System.getProperty("cache.server.legacy", "false"));
-    }
-    
+
     private Supplier<MBeanServerConnection> getJmxServerConnection(JmxInfinispanCacheStatistics annotation) throws MalformedURLException {
         final String host;
         final int port;
@@ -207,19 +200,6 @@ public class CacheStatisticsControllerEnricher implements TestEnricher {
               ? Integer.valueOf(container.getContainerConfiguration().getContainerProperties().get("managementPort"))
               : 9990;
         } else {
-            Container container = suiteContext.get().getCacheServersInfo().get(0).getArquillianContainer();
-            if (container.getDeployableContainer() instanceof InfinispanServerDeployableContainer) {
-                // jmx connection to infinispan server
-                return () -> {
-                    try {
-                        return jmxConnectorRegistry.get().getConnection(
-                                ((InfinispanServerDeployableContainer) container.getDeployableContainer()).getJMXServiceURL()
-                        ).getMBeanServerConnection();
-                    } catch (IOException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                };
-            }
             host = annotation.host().isEmpty()
               ? System.getProperty((annotation.hostProperty().isEmpty()
                 ? "keycloak.connectionsInfinispan.remoteStoreServer"
@@ -259,19 +239,6 @@ public class CacheStatisticsControllerEnricher implements TestEnricher {
               ? Integer.valueOf(container.getContainerConfiguration().getContainerProperties().get("managementPort"))
               : 9990;
         } else {
-            Container container = suiteContext.get().getCacheServersInfo().get(0).getArquillianContainer();
-            if (container.getDeployableContainer() instanceof InfinispanServerDeployableContainer) {
-                // jmx connection to infinispan server
-                return () -> {
-                    try {
-                        return jmxConnectorRegistry.get().getConnection(
-                                ((InfinispanServerDeployableContainer) container.getDeployableContainer()).getJMXServiceURL()
-                        ).getMBeanServerConnection();
-                    } catch (IOException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                };
-            }
             host = annotation.host().isEmpty()
               ? System.getProperty((annotation.hostProperty().isEmpty()
                 ? "keycloak.connectionsInfinispan.remoteStoreServer"
@@ -417,7 +384,7 @@ public class CacheStatisticsControllerEnricher implements TestEnricher {
         public void reset() {
             try {
                 getConnection().invoke(getMbeanName(), "resetStats", new Object[] {}, new String[] {});
-            } catch (NotSerializableException | UnmarshalException ex) {
+            } catch (NotSerializableException ex) {
                 // Ignore return value not serializable, the invocation has already done its job
             } catch (IOException | InstanceNotFoundException | MBeanException | ReflectionException ex) {
                 throw new RuntimeException(ex);

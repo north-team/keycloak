@@ -38,7 +38,6 @@ import javax.ws.rs.core.Response;
 
 import java.util.List;
 import java.util.Map;
-import org.infinispan.commons.time.TimeService;
 
 /**
  * @author <a href="mailto:mstrukel@redhat.com">Marko Strukelj</a>
@@ -90,9 +89,9 @@ public interface TestingResource {
     void clearEventStore(@QueryParam("realmId") String realmId);
 
     @GET
-    @Path("/clear-expired-events")
+    @Path("/clear-event-store-older-than")
     @Produces(MediaType.APPLICATION_JSON)
-    void clearExpiredEvents();
+    void clearEventStore(@QueryParam("realmId") String realmId, @QueryParam("olderThan") long olderThan);
 
     /**
      * Query events
@@ -197,20 +196,6 @@ public interface TestingResource {
     @Produces(MediaType.APPLICATION_JSON)
     void removeExpired(@QueryParam("realm") final String realm);
 
-    /**
-     * Will set Inifispan's {@link TimeService} that is aware of Keycloak time shifts to the infinispan {@code CacheManager} before the test.
-     * This will allow infinispan expiration to be aware of Keycloak {@link org.keycloak.common.util.Time#setOffset}
-     */
-    @POST
-    @Path("/set-testing-infinispan-time-service")
-    @Produces(MediaType.APPLICATION_JSON)
-    void setTestingInfinispanTimeService();
-
-    @POST
-    @Path("/revert-testing-infinispan-time-service")
-    @Produces(MediaType.APPLICATION_JSON)
-    void revertTestingInfinispanTimeService();
-
     @GET
     @Path("/get-client-sessions-count")
     @Produces(MediaType.APPLICATION_JSON)
@@ -268,11 +253,6 @@ public interface TestingResource {
     @Path("/test-component")
     @Produces(MediaType.APPLICATION_JSON)
     Map<String, TestProvider.DetailsRepresentation> getTestComponentDetails();
-
-    @GET
-    @Path("/test-amphibian-component")
-    @Produces(MediaType.APPLICATION_JSON)
-    Map<String, Map<String, Object>> getTestAmphibianComponentDetails();
 
 
     @GET
@@ -342,31 +322,6 @@ public interface TestingResource {
     @Consumes(MediaType.APPLICATION_JSON)
     Response disableFeature(@PathParam("feature") String feature);
 
-    /**
-     * If property-value is null, the system property will be unset (removed) on the server
-     */
-    @GET
-    @Path("/set-system-property")
-    @Consumes(MediaType.TEXT_HTML_UTF_8)
-    void setSystemPropertyOnServer(@QueryParam("property-name") String propertyName, @QueryParam("property-value") String propertyValue);
-
-    /**
-     * Re-initialize specified provider factory with system properties scope. This will allow to change providerConfig in runtime with {@link #setSystemPropertyOnServer}
-     *
-     * This works just for the provider factories, which can be re-initialized without any side-effects (EG. some functionality already dependent
-     * on the previously initialized properties, which cannot be easily changed in runtime)
-     *
-     * @param providerType fully qualified class name of provider (subclass of org.keycloak.provider.Provider)
-     * @param providerId provider Id
-     * @param systemPropertiesPrefix prefix to be used for system properties
-     */
-    @GET
-    @Path("/reinitialize-provider-factory-with-system-properties-scope")
-    @Consumes(MediaType.TEXT_HTML_UTF_8)
-    @NoCache
-    void reinitializeProviderFactoryWithSystemPropertiesScope(@QueryParam("provider-type") String providerType, @QueryParam("provider-id") String providerId,
-                                                              @QueryParam("system-properties-prefix") String systemPropertiesPrefix);
-
 
     /**
      * This method is here just to have all endpoints from TestingResourceProvider available here.
@@ -379,13 +334,4 @@ public interface TestingResource {
     Response simulatePostRequest(@QueryParam("postRequestUrl") String postRequestUrl,
                                          @QueryParam("encodedFormParameters") String encodedFormParameters);
 
-    /**
-     * Display message to Error Page - for testing purposes
-     *
-     * @param message message
-     */
-    @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    @Path("/display-error-message")
-    Response displayErrorMessage(@QueryParam("message") String message);
 }

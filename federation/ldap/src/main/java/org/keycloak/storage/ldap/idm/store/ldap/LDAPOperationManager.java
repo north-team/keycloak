@@ -320,14 +320,6 @@ public class LDAPOperationManager {
                                     identityQuery.getPaginationContext().setCookie(cookie);
                                 }
                             }
-                        } else {
-                            /*
-                             * This ensures that PaginationContext#hasNextPage() will return false if we don't get ResponseControls back
-                             * from the LDAP query response. This helps to avoid an infinite loop in org.keycloak.storage.ldap.LDAPUtils.loadAllLDAPObjects
-                             * See KEYCLOAK-19036
-                             */
-                            identityQuery.getPaginationContext().setCookie(null);
-                            logger.warnf("Did not receive response controls for paginated query using DN [%s], filter [%s]. Did you hit a query result size limit?", baseDN, filter);
                         }
 
                         return result;
@@ -370,35 +362,47 @@ public class LDAPOperationManager {
     }
 
     public String getFilterById(String id) {
-        StringBuilder filter = new StringBuilder();
-        filter.insert(0, "(&");
+        String filter = null;
 
         if (this.config.isObjectGUID()) {
-            byte[] objectGUID = LDAPUtil.encodeObjectGUID(id);
-            filter.append("(objectClass=*)(").append(
-                    getUuidAttributeName()).append(LDAPConstants.EQUAL)
-                .append(LDAPUtil.convertObjectGUIDToByteString(
-                    objectGUID)).append(")");
+            final String strObjectGUID = "<GUID=" + id + ">";
 
-        } else if (this.config.isEdirectoryGUID()) {
-            filter.append("(objectClass=*)(").append(getUuidAttributeName().toUpperCase())
-                .append(LDAPConstants.EQUAL
-                ).append(LDAPUtil.convertGUIDToEdirectoryHexString(id)).append(")");
-        } else {
-            filter.append("(objectClass=*)(").append(getUuidAttributeName()).append(LDAPConstants.EQUAL)
-                .append(id).append(")");
+            try {
+                Attributes attributes = execute(new LdapOperation<Attributes>() {
+
+                    @Override
+                    public Attributes execute(LdapContext context) throws NamingException {
+                        return context.getAttributes(strObjectGUID);
+                    }
+
+
+                    @Override
+                    public String toString() {
+                        return new StringBuilder("LdapOperation: GUIDResolve\n")
+                                .append(" strObjectGUID: ").append(strObjectGUID)
+                                .toString();
+                    }
+
+
+                });
+
+                byte[] objectGUID = (byte[]) attributes.get(LDAPConstants.OBJECT_GUID).get();
+
+                filter = "(&(objectClass=*)(" + getUuidAttributeName() + LDAPConstants.EQUAL + LDAPUtil.convertObjectGUIDToByteString(objectGUID) + "))";
+            } catch (NamingException ne) {
+                filter = null;
+            }
         }
 
-        if (config.getCustomUserSearchFilter() != null) {
-            filter.append(config.getCustomUserSearchFilter());
+        if (filter == null) {
+            filter = "(&(objectClass=*)(" + getUuidAttributeName() + LDAPConstants.EQUAL + id + "))";
         }
 
-        filter.append(")");
-        String ldapIdFilter = filter.toString();
+        if (logger.isTraceEnabled()) {
+            logger.tracef("Using filter for lookup user by LDAP ID: %s", filter);
+        }
 
-        logger.tracef("Using filter for lookup user by LDAP ID: %s", ldapIdFilter);
-
-        return ldapIdFilter;
+        return filter;
     }
 
     public SearchResult lookupById(final String baseDN, final String id, final Collection<String> returningAttributes) {
@@ -530,13 +534,6 @@ public class LDAPOperationManager {
             }
 
             throw ae;
-        } catch(RuntimeException re){
-            if (logger.isDebugEnabled()) {
-                logger.debugf(re, "LDAP Connection TimeOut for DN [%s]", dn);
-            }
-            
-            throw re;
-
         } catch (Exception e) {
             logger.errorf(e, "Unexpected exception when validating password of DN [%s]", dn);
             throw new AuthenticationException("Unexpected exception when validating password of user");

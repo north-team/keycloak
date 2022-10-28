@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Red Hat, Inc. and/or its affiliates
+ * Copyright 2020 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@
 
 package org.keycloak.services.clientpolicy.condition;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -25,65 +26,28 @@ import java.util.Set;
 
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
+import org.keycloak.component.ComponentModel;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.protocol.oidc.endpoints.request.AuthorizationEndpointRequest;
-import org.keycloak.protocol.oidc.grants.ciba.channel.CIBAAuthenticationRequest;
-import org.keycloak.protocol.oidc.grants.ciba.clientpolicy.context.BackchannelAuthenticationRequestContext;
-import org.keycloak.protocol.oidc.grants.ciba.clientpolicy.context.BackchannelTokenRequestContext;
-import org.keycloak.protocol.oidc.grants.ciba.clientpolicy.context.BackchannelTokenResponseContext;
-import org.keycloak.representations.idm.ClientPolicyConditionConfigurationRepresentation;
+import org.keycloak.services.clientpolicy.AuthorizationRequestContext;
 import org.keycloak.services.clientpolicy.ClientPolicyContext;
 import org.keycloak.services.clientpolicy.ClientPolicyException;
+import org.keycloak.services.clientpolicy.ClientPolicyLogger;
 import org.keycloak.services.clientpolicy.ClientPolicyVote;
-import org.keycloak.services.clientpolicy.context.AuthorizationRequestContext;
-import org.keycloak.services.clientpolicy.context.ServiceAccountTokenRequestContext;
-import org.keycloak.services.clientpolicy.context.ServiceAccountTokenResponseContext;
-import org.keycloak.services.clientpolicy.context.TokenRequestContext;
-import org.keycloak.services.clientpolicy.context.TokenResponseContext;
+import org.keycloak.services.clientpolicy.TokenRequestContext;
 
-/**
- * @author <a href="mailto:takashi.norimatsu.ws@hitachi.com">Takashi Norimatsu</a>
- */
-public class ClientScopesCondition extends AbstractClientPolicyConditionProvider<ClientScopesCondition.Configuration> {
+public class ClientScopesCondition implements ClientPolicyConditionProvider {
 
     private static final Logger logger = Logger.getLogger(ClientScopesCondition.class);
 
-    public ClientScopesCondition(KeycloakSession session) {
-        super(session);
-    }
+    private final KeycloakSession session;
+    private final ComponentModel componentModel;
 
-    @Override
-    public Class<Configuration> getConditionConfigurationClass() {
-        return Configuration.class;
-    }
-
-    public static class Configuration extends ClientPolicyConditionConfigurationRepresentation {
-
-        protected String type;
-        protected List<String> scopes;
-
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        public List<String> getScopes() {
-            return scopes;
-        }
-
-        public void setScopes(List<String> scope) {
-            this.scopes = scope;
-        }
-    }
-
-    @Override
-    public String getProviderId() {
-        return ClientScopesConditionFactory.PROVIDER_ID;
+    public ClientScopesCondition(KeycloakSession session, ComponentModel componentModel) {
+        this.session = session;
+        this.componentModel = componentModel;
     }
 
     @Override
@@ -95,27 +59,19 @@ public class ClientScopesCondition extends AbstractClientPolicyConditionProvider
             case TOKEN_REQUEST:
                 if (isScopeMatched(((TokenRequestContext)context).getParseResult().getClientSession())) return ClientPolicyVote.YES;
                 return ClientPolicyVote.NO;
-            case TOKEN_RESPONSE:
-                if (isScopeMatched(((TokenResponseContext)context).getParseResult().getClientSession())) return ClientPolicyVote.YES;
-                return ClientPolicyVote.NO;
-            case SERVICE_ACCOUNT_TOKEN_REQUEST:
-                if (isScopeMatched(((ServiceAccountTokenRequestContext)context).getClientSession())) return ClientPolicyVote.YES;
-                return ClientPolicyVote.NO;
-            case SERVICE_ACCOUNT_TOKEN_RESPONSE:
-                if (isScopeMatched(((ServiceAccountTokenResponseContext)context).getClientSession())) return ClientPolicyVote.YES;
-                return ClientPolicyVote.NO;
-            case BACKCHANNEL_AUTHENTICATION_REQUEST:
-                if (isScopeMatched(((BackchannelAuthenticationRequestContext)context).getParsedRequest())) return ClientPolicyVote.YES;
-                return ClientPolicyVote.NO;
-            case BACKCHANNEL_TOKEN_REQUEST:
-                if (isScopeMatched(((BackchannelTokenRequestContext)context).getParsedRequest())) return ClientPolicyVote.YES;
-                return ClientPolicyVote.NO;
-            case BACKCHANNEL_TOKEN_RESPONSE:
-                if (isScopeMatched(((BackchannelTokenResponseContext)context).getParsedRequest())) return ClientPolicyVote.YES;
-                return ClientPolicyVote.NO;
             default:
                 return ClientPolicyVote.ABSTAIN;
         }
+    }
+
+    @Override
+    public String getName() {
+        return componentModel.getName();
+    }
+
+    @Override
+    public String getProviderId() {
+        return componentModel.getProviderId();
     }
 
     private boolean isScopeMatched(AuthenticatedClientSessionModel clientSession) {
@@ -128,48 +84,35 @@ public class ClientScopesCondition extends AbstractClientPolicyConditionProvider
         return isScopeMatched(request.getScope(), session.getContext().getRealm().getClientByClientId(request.getClientId()));
     }
 
-    private boolean isScopeMatched(CIBAAuthenticationRequest request) {
-        if (request == null || request.getClient() == null) return false;
-        return isScopeMatched(request.getScope(), session.getContext().getRealm().getClientByClientId(request.getClient().getClientId()));
-    }
-
     private boolean isScopeMatched(String explicitScopes, ClientModel client) {
         if (explicitScopes == null) explicitScopes = "";
         Collection<String> explicitSpecifiedScopes = new HashSet<>(Arrays.asList(explicitScopes.split(" ")));
-        Set<String> defaultScopes = client.getClientScopes(true).keySet();
-        Set<String> optionalScopes = client.getClientScopes(false).keySet();
-        Set<String> expectedScopes = getScopesForMatching();
-        if (expectedScopes == null) return false;
+        Set<String> defaultScopes = client.getClientScopes(true, true).keySet();
+        Set<String> optionalScopes = client.getClientScopes(false, true).keySet();
+        List<String> expectedScopes = componentModel.getConfig().get(ClientScopesConditionFactory.SCOPES);
+        if (expectedScopes == null) expectedScopes = new ArrayList<>();
 
         if (logger.isTraceEnabled()) {
-            explicitSpecifiedScopes.forEach(i -> logger.tracev("explicit specified client scope = {0}", i));
-            defaultScopes.forEach(i -> logger.tracev("default client scope = {0}", i));
-            optionalScopes.forEach(i -> logger.tracev("optional client scope = {0}", i));
-            expectedScopes.forEach(i -> logger.tracev("expected scope = {0}", i));
+            explicitSpecifiedScopes.stream().forEach(i -> ClientPolicyLogger.log(logger, " explicit specified client scope = " + i));
+            defaultScopes.stream().forEach(i -> ClientPolicyLogger.log(logger, " default client scope = " + i));
+            optionalScopes.stream().forEach(i -> ClientPolicyLogger.log(logger, " optional client scope = " + i));
+            expectedScopes.stream().forEach(i -> ClientPolicyLogger.log(logger, " expected scope = " + i));
         }
 
-        boolean isDefaultScope = ClientScopesConditionFactory.DEFAULT.equals(configuration.getType());
+        boolean isDefaultScope = ClientScopesConditionFactory.DEFAULT.equals(componentModel.getConfig().getFirst(ClientScopesConditionFactory.TYPE));
 
         if (isDefaultScope) {
-            expectedScopes.retainAll(defaultScopes); // may change expectedScopes so that it has needed to be instantiated.
+            expectedScopes.retainAll(defaultScopes);
             return expectedScopes.isEmpty() ? false : true;
         } else {
             explicitSpecifiedScopes.retainAll(expectedScopes);
             explicitSpecifiedScopes.retainAll(optionalScopes);
             if (!explicitSpecifiedScopes.isEmpty()) {
-                if (logger.isTraceEnabled()) {
-                    explicitSpecifiedScopes.forEach(i->logger.tracev("matched scope = {0}", i));
-                }
+                explicitSpecifiedScopes.stream().forEach(i->{ClientPolicyLogger.log(logger, " matched scope = " + i);});
                 return true;
             }
         }
         return false;
-    }
-
-    private Set<String> getScopesForMatching() {
-        List<String> scopes = configuration.getScopes();
-        if (scopes == null) return null;
-        return new HashSet<>(scopes);
     }
 
 }

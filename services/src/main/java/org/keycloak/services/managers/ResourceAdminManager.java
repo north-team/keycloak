@@ -16,7 +16,9 @@
  */
 package org.keycloak.services.managers;
 
+import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.BasicNameValuePair;
@@ -33,7 +35,6 @@ import org.keycloak.constants.AdapterConstants;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.ModelIllegalStateException;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.protocol.LoginProtocol;
@@ -59,8 +60,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.impl.client.CloseableHttpClient;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -213,27 +212,22 @@ public class ResourceAdminManager {
             if (logoutToken != null) {
                 parameters.add(new BasicNameValuePair(OAuth2Constants.LOGOUT_TOKEN, token));
             }
-            CloseableHttpClient httpClient = session.getProvider(HttpClientProvider.class).getHttpClient();
+            HttpClient httpClient = session.getProvider(HttpClientProvider.class).getHttpClient();
             UrlEncodedFormEntity formEntity;
-            formEntity = new UrlEncodedFormEntity(parameters);
+            formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
             post.setEntity(formEntity);
-            try (CloseableHttpResponse response = httpClient.execute(post)) {
-                try {
-                    int status = response.getStatusLine().getStatusCode();
-                    EntityUtils.consumeQuietly(response.getEntity());
-                    boolean success = status == 204 || status == 200;
-                    logger.debugf("logout success for %s: %s", managementUrl, success);
-                    return Response.status(status).build();
-                } finally {
-                    EntityUtils.consumeQuietly(response.getEntity());
-                }
-            }
+            HttpResponse response = httpClient.execute(post);
+            int status = response.getStatusLine().getStatusCode();
+            EntityUtils.consumeQuietly(response.getEntity());
+            boolean success = status == 204 || status == 200;
+            logger.debugf("logout success for %s: %s", managementUrl, success);
+            return Response.status(status).build();
         } catch (IOException e) {
             ServicesLogger.LOGGER.logoutFailed(e, resource.getClientId());
             return Response.serverError().build();
         } finally {
             if (post != null) {
-                post.reset();
+                post.releaseConnection();
             }
         }
     }
@@ -242,18 +236,14 @@ public class ResourceAdminManager {
 
     public GlobalRequestResult logoutAll(RealmModel realm) {
         realm.setNotBefore(Time.currentTime());
+        Stream<ClientModel> resources = realm.getClientsStream();
 
         GlobalRequestResult finalResult = new GlobalRequestResult();
         AtomicInteger counter = new AtomicInteger(0);
-        realm.getClientsStream().forEach(c -> {
-            try {
-                counter.getAndIncrement();
-                GlobalRequestResult currentResult = logoutClient(realm, c, realm.getNotBefore());
-                finalResult.addAll(currentResult);
-            } catch (ModelIllegalStateException ex) {
-                // currently, GlobalRequestResult doesn't allow for information about clients that we were unable to retrieve.
-                logger.warn("unable to retrieve client information for logout, skipping resource", ex);
-            }
+        resources.forEach(r -> {
+            counter.getAndIncrement();
+            GlobalRequestResult currentResult = logoutClient(realm, r, realm.getNotBefore());
+            finalResult.addAll(currentResult);
         });
         logger.debugv("logging out {0} resources ", counter);
 

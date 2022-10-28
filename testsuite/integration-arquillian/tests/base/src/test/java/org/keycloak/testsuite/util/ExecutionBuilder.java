@@ -60,7 +60,7 @@ public class ExecutionBuilder {
     }
 
     public ExecutionBuilder authenticatorFlow(boolean authenticatorFlow) {
-        rep.setAuthenticatorFlow(authenticatorFlow);
+        rep.setAutheticatorFlow(authenticatorFlow);
         return this;
     }
 

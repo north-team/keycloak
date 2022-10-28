@@ -17,7 +17,7 @@
 
 package org.keycloak.authentication.authenticators.resetcred;
 
-import org.keycloak.models.DefaultActionTokenKey;
+import org.keycloak.authentication.actiontoken.DefaultActionTokenKey;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.authentication.*;
@@ -65,7 +65,7 @@ public class ResetCredentialChooseUser implements Authenticator, AuthenticatorFa
 
         String actionTokenUserId = context.getAuthenticationSession().getAuthNote(DefaultActionTokenKey.ACTION_TOKEN_USER_ID);
         if (actionTokenUserId != null) {
-            UserModel existingUser = context.getSession().users().getUserById(context.getRealm(), actionTokenUserId);
+            UserModel existingUser = context.getSession().users().getUserById(actionTokenUserId, context.getRealm());
 
             // Action token logics handles checks for user ID validity and user being enabled
 
@@ -96,9 +96,9 @@ public class ResetCredentialChooseUser implements Authenticator, AuthenticatorFa
         username = username.trim();
         
         RealmModel realm = context.getRealm();
-        UserModel user = context.getSession().users().getUserByUsername(realm, username);
+        UserModel user = context.getSession().users().getUserByUsername(username, realm);
         if (user == null && realm.isLoginWithEmailAllowed() && username.contains("@")) {
-            user =  context.getSession().users().getUserByEmail(realm, username);
+            user =  context.getSession().users().getUserByEmail(username, realm);
         }
 
         context.getAuthenticationSession().setAuthNote(AbstractUsernameFormAuthenticator.ATTEMPTED_USERNAME, username);

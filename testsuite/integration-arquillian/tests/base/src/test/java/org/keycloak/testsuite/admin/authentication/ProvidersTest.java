@@ -32,12 +32,16 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
+import org.keycloak.testsuite.arquillian.annotation.EnableFeature;
 
 import static org.hamcrest.Matchers.is;
 
 /**
  * @author <a href="mailto:mstrukel@redhat.com">Marko Strukelj</a>
  */
+@EnableFeature(value = Profile.Feature.WEB_AUTHN, skipRestart = true, onlyForProduct = true)
 public class ProvidersTest extends AbstractAuthenticationTest {
 
     @Test
@@ -54,6 +58,7 @@ public class ProvidersTest extends AbstractAuthenticationTest {
     }
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void testFormActionProviders() {
         List<Map<String, Object>> result = authMgmtResource.getFormActionProviders();
 
@@ -73,6 +78,7 @@ public class ProvidersTest extends AbstractAuthenticationTest {
     }
 
     @Test
+    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void testClientAuthenticatorProviders() {
         List<Map<String, Object>> result = authMgmtResource.getClientAuthenticatorProviders();
 
@@ -151,6 +157,8 @@ public class ProvidersTest extends AbstractAuthenticationTest {
                 "Validates username and password from X509 client certificate received as a part of mutual SSL handshake.");
         addProviderInfo(result, "basic-auth", "Basic Auth Challenge", "Challenge-response authentication using HTTP BASIC scheme.");
         addProviderInfo(result, "basic-auth-otp", "Basic Auth Password+OTP", "Challenge-response authentication using HTTP BASIC scheme.  Password param should contain a combination of password + otp. Realm's OTP policy is used to determine how to parse this. This SHOULD NOT BE USED in conjection with regular basic auth provider.");
+        addProviderInfo(result, "console-username-password", "Username Password Challenge",
+                "Proprietary challenge protocol for CLI clients that queries for username password");
         addProviderInfo(result, "direct-grant-auth-x509-username", "X509/Validate Username",
                 "Validates username and password from X509 client certificate received as a part of mutual SSL handshake.");
         addProviderInfo(result, "direct-grant-validate-otp", "OTP", "Validates the one time password supplied as a 'totp' form parameter in direct grant request");
@@ -174,7 +182,7 @@ public class ProvidersTest extends AbstractAuthenticationTest {
                 "User reviews and updates profile data retrieved from Identity Provider in the displayed form");
         addProviderInfo(result, "idp-username-password-form", "Username Password Form for identity provider reauthentication",
                 "Validates a password from login form. Username may be already known from identity provider authentication");
-        addProviderInfo(result, "no-cookie-redirect", "Browser Redirect for Cookie free authentication", "Perform a 302 redirect to get user agent's current URI on authenticate path with an auth_session_id query parameter.  This is for client's that do not support cookies.");
+        addProviderInfo(result, "no-cookie-redirect", "Browser Redirect/Refresh", "Perform a 302 redirect to get user agent's current URI on authenticate path with an auth_session_id query parameter.  This is for client's that do not support cookies.");
         addProviderInfo(result, "push-button-authenticator", "TEST: Button Login",
                 "Just press the button to login.");
         addProviderInfo(result, "reset-credential-email", "Send Reset Email", "Send email to user and wait for response.");
@@ -206,22 +214,6 @@ public class ProvidersTest extends AbstractAuthenticationTest {
                 "Flow is executed only if the user attribute exists and has the expected value");
         addProviderInfo(result, "set-attribute", "Set user attribute",
                 "Set a user attribute");
-        addProviderInfo(result, "idp-detect-existing-broker-user", "Detect existing broker user",
-                "Detect if there is an existing Keycloak account with same email like identity provider. If no, throw an error.");
-
-        addProviderInfo(result, "deny-access-authenticator", "Deny access",
-                "Access will be always denied. Useful for example in the conditional flows to be used after satisfying the previous conditions");
-        addProviderInfo(result, "allow-access-authenticator", "Allow access",
-                "Authenticator will always successfully authenticate. Useful for example in the conditional flows to be used after satisfying the previous conditions");
-
-        addProviderInfo(result, "conditional-level-of-authentication", "Condition - Level of Authentication",
-                "Flow is executed only if the configured LOA or a higher one has been requested but not yet satisfied. After the flow is successfully finished, the LOA in the session will be updated to value prescribed by this condition.");
-        
-        addProviderInfo(result, "user-session-limits", "User session count limiter",
-                "Configures how many concurrent sessions a single user is allowed to create for this realm and/or client");
-
-        addProviderInfo(result, "custom-callback-authenticator", "Custom callback Factory",
-                "Used for testing purposes of Callback factory");
 
         return result;
     }

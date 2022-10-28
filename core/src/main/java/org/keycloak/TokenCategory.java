@@ -22,6 +22,5 @@ public enum TokenCategory {
     ID,
     ADMIN,
     USERINFO,
-    LOGOUT,
-    AUTHORIZATION_RESPONSE
+    LOGOUT
 }

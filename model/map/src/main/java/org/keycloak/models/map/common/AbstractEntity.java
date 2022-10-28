@@ -20,8 +20,13 @@ package org.keycloak.models.map.common;
  *
  * @author hmlnarik
  */
-public interface AbstractEntity {
+public interface AbstractEntity<K> {
 
-    String getId();
-    void setId(String id);
+    K getId();
+
+    /**
+     * Flag signalizing that any of the setters has been meaningfully used.
+     * @return
+     */
+    boolean isUpdated();
 }

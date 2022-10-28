@@ -23,27 +23,23 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.map.common.TimeAdapter;
+import org.keycloak.models.map.common.Serialization;
 import org.keycloak.models.map.storage.MapKeycloakTransaction;
 import org.keycloak.models.map.storage.MapStorage;
-import org.keycloak.models.map.storage.ModelCriteriaBuilder.Operator;
-import org.keycloak.models.map.storage.criteria.DefaultModelCriteria;
+import org.keycloak.models.utils.RealmInfoUtil;
 import org.keycloak.sessions.AuthenticationSessionCompoundId;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
 
-import org.keycloak.sessions.RootAuthenticationSessionModel.SearchableFields;
-
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
-import static org.keycloak.models.map.common.ExpirationUtils.isExpired;
-import static org.keycloak.models.map.storage.QueryParameters.withCriteria;
-import static org.keycloak.models.map.storage.criteria.DefaultModelCriteria.criteria;
-import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan;
 
 /**
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
@@ -52,33 +48,35 @@ public class MapRootAuthenticationSessionProvider implements AuthenticationSessi
 
     private static final Logger LOG = Logger.getLogger(MapRootAuthenticationSessionProvider.class);
     private final KeycloakSession session;
-    protected final MapKeycloakTransaction<MapRootAuthenticationSessionEntity, RootAuthenticationSessionModel> tx;
-    private int authSessionsLimit;
+    protected final MapKeycloakTransaction<UUID, MapRootAuthenticationSessionEntity> tx;
+    private final MapStorage<UUID, MapRootAuthenticationSessionEntity> sessionStore;
 
-    public MapRootAuthenticationSessionProvider(KeycloakSession session,
-                                                MapStorage<MapRootAuthenticationSessionEntity, RootAuthenticationSessionModel> sessionStore,
-                                                int authSessionsLimit) {
+    private static final Predicate<MapRootAuthenticationSessionEntity> ALWAYS_FALSE = role -> false;
+    private static final String AUTHENTICATION_SESSION_EVENTS = "AUTHENTICATION_SESSION_EVENTS";
+
+    public MapRootAuthenticationSessionProvider(KeycloakSession session, MapStorage<UUID, MapRootAuthenticationSessionEntity> sessionStore) {
         this.session = session;
-        this.tx = sessionStore.createTransaction(session);
-        this.authSessionsLimit = authSessionsLimit;
+        this.sessionStore = sessionStore;
+        this.tx = new MapKeycloakTransaction<>(sessionStore);
 
         session.getTransactionManager().enlistAfterCompletion(tx);
     }
 
     private Function<MapRootAuthenticationSessionEntity, RootAuthenticationSessionModel> entityToAdapterFunc(RealmModel realm) {
-        return origEntity -> {
-            if (isExpired(origEntity, true)) {
-                tx.delete(origEntity.getId());
-                return null;
-            } else {
-                return new MapRootAuthenticationSessionAdapter(session, realm, origEntity, authSessionsLimit);
-            }
-        };
+        // Clone entity before returning back, to avoid giving away a reference to the live object to the caller
+
+        return origEntity -> new MapRootAuthenticationSessionAdapter(session, realm, registerEntityForChanges(origEntity));
+    }
+
+    private MapRootAuthenticationSessionEntity registerEntityForChanges(MapRootAuthenticationSessionEntity origEntity) {
+        MapRootAuthenticationSessionEntity res = tx.get(origEntity.getId(), id -> Serialization.from(origEntity));
+        tx.putIfChanged(origEntity.getId(), res, MapRootAuthenticationSessionEntity::isUpdated);
+        return res;
     }
 
     private Predicate<MapRootAuthenticationSessionEntity> entityRealmFilter(String realmId) {
         if (realmId == null) {
-            return c -> false;
+            return MapRootAuthenticationSessionProvider.ALWAYS_FALSE;
         }
         return entity -> Objects.equals(realmId, entity.getRealmId());
     }
@@ -93,23 +91,20 @@ public class MapRootAuthenticationSessionProvider implements AuthenticationSessi
     public RootAuthenticationSessionModel createRootAuthenticationSession(RealmModel realm, String id) {
         Objects.requireNonNull(realm, "The provided realm can't be null!");
 
+        final UUID entityId = id == null ? UUID.randomUUID() : UUID.fromString(id);
+
         LOG.tracef("createRootAuthenticationSession(%s)%s", realm.getName(), getShortStackTrace());
 
         // create map authentication session entity
-        MapRootAuthenticationSessionEntity entity = new MapRootAuthenticationSessionEntityImpl();
-        entity.setId(id);
+        MapRootAuthenticationSessionEntity entity = new MapRootAuthenticationSessionEntity(entityId, realm.getId());
         entity.setRealmId(realm.getId());
-        long timestamp = Time.currentTimeMillis();
-        entity.setTimestamp(timestamp);
+        entity.setTimestamp(Time.currentTime());
 
-        int authSessionLifespanSeconds = getAuthSessionLifespan(realm);
-        entity.setExpiration(timestamp + TimeAdapter.fromSecondsToMilliseconds(authSessionLifespanSeconds));
-
-        if (id != null && tx.read(id) != null) {
+        if (tx.get(entity.getId(), sessionStore::get) != null) {
             throw new ModelDuplicateException("Root authentication session exists: " + entity.getId());
         }
 
-        entity = tx.create(entity);
+        tx.putIfAbsent(entity.getId(), entity);
 
         return entityToAdapterFunc(realm).apply(entity);
     }
@@ -123,7 +118,7 @@ public class MapRootAuthenticationSessionProvider implements AuthenticationSessi
 
         LOG.tracef("getRootAuthenticationSession(%s, %s)%s", realm.getName(), authenticationSessionId, getShortStackTrace());
 
-        MapRootAuthenticationSessionEntity entity = tx.read(authenticationSessionId);
+        MapRootAuthenticationSessionEntity entity = tx.get(UUID.fromString(authenticationSessionId), sessionStore::get);
         return (entity == null || !entityRealmFilter(realm.getId()).test(entity))
                 ? null
                 : entityToAdapterFunc(realm).apply(entity);
@@ -132,28 +127,35 @@ public class MapRootAuthenticationSessionProvider implements AuthenticationSessi
     @Override
     public void removeRootAuthenticationSession(RealmModel realm, RootAuthenticationSessionModel authenticationSession) {
         Objects.requireNonNull(authenticationSession, "The provided root authentication session can't be null!");
-        tx.delete(authenticationSession.getId());
-    }
-
-    @Override
-    public void removeAllExpired() {
-        LOG.tracef("removeAllExpired()%s", getShortStackTrace());
-        LOG.warnf("Clearing expired entities should not be triggered manually. It is responsibility of the store to clear these.");
+        tx.remove(UUID.fromString(authenticationSession.getId()));
     }
 
     @Override
     public void removeExpired(RealmModel realm) {
-        LOG.tracef("removeExpired(%s)%s", realm, getShortStackTrace());
-        LOG.warnf("Clearing expired entities should not be triggered manually. It is responsibility of the store to clear these.");
+        Objects.requireNonNull(realm, "The provided realm can't be null!");
+        LOG.debugf("Removing expired sessions");
+
+        int expired = Time.currentTime() - RealmInfoUtil.getDettachedClientSessionLifespan(realm);
+
+        List<UUID> sessionIds = sessionStore.entrySet().stream()
+                .filter(entity -> entityRealmFilter(realm.getId()).test(entity.getValue()))
+                .filter(entity -> entity.getValue().getTimestamp() < expired)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        LOG.debugf("Removed %d expired authentication sessions for realm '%s'", sessionIds.size(), realm.getName());
+
+        sessionIds.forEach(tx::remove);
     }
 
     @Override
     public void onRealmRemoved(RealmModel realm) {
         Objects.requireNonNull(realm, "The provided realm can't be null!");
-        DefaultModelCriteria<RootAuthenticationSessionModel> mcb = criteria();
-        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId());
-
-        tx.delete(withCriteria(mcb));
+        sessionStore.entrySet().stream()
+                .filter(entity -> entityRealmFilter(realm.getId()).test(entity.getValue()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList())
+                .forEach(tx::remove);
     }
 
     @Override
@@ -167,6 +169,15 @@ public class MapRootAuthenticationSessionProvider implements AuthenticationSessi
             return;
         }
         Objects.requireNonNull(authNotesFragment, "The provided authentication's notes map can't be null!");
+
+        ClusterProvider cluster = session.getProvider(ClusterProvider.class);
+        cluster.notify(
+                AUTHENTICATION_SESSION_EVENTS,
+                MapAuthenticationSessionAuthNoteUpdateEvent.create(compoundId.getRootSessionId(), compoundId.getTabId(),
+                        compoundId.getClientUUID(), authNotesFragment),
+                true,
+                ClusterProvider.DCNotify.ALL_BUT_LOCAL_DC
+        );
     }
 
     @Override

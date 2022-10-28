@@ -17,9 +17,6 @@
 
 package org.keycloak.services.clientpolicy;
 
-/**
- * @author <a href="mailto:takashi.norimatsu.ws@hitachi.com">Takashi Norimatsu</a>
- */
 public enum ClientPolicyVote {
     YES,
     NO,

@@ -27,7 +27,6 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.credential.PasswordCredentialModel;
 import org.keycloak.storage.StorageId;
 import org.keycloak.storage.UserStorageProvider;
-import org.keycloak.storage.UserStorageUtil;
 import org.keycloak.storage.adapter.AbstractUserAdapterFederatedStorage;
 import org.keycloak.storage.user.UserLookupProvider;
 
@@ -37,7 +36,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Provides one user where everything is stored in user federated storage
@@ -84,7 +82,7 @@ public class PassThroughFederatedUserStorageProvider implements
              if (INITIAL_PASSWORD.equals(input.getChallengeResponse())) {
                  return true;
              }
-            return UserStorageUtil.userFederatedStorage(session).getStoredCredentialsByTypeStream(realm, user.getId(), "CLEAR_TEXT_PASSWORD")
+            return session.userFederatedStorage().getStoredCredentialsByTypeStream(realm, user.getId(), "CLEAR_TEXT_PASSWORD")
                     .map(credentialModel -> credentialModel.getSecretData())
                     .anyMatch(Predicate.isEqual("{\"value\":\"" + input.getChallengeResponse() + "\"}"));
         }
@@ -95,19 +93,19 @@ public class PassThroughFederatedUserStorageProvider implements
     public boolean updateCredential(RealmModel realm, UserModel user, CredentialInput input) {
         // testing federated credential attributes
         if (input.getType().equals(PasswordCredentialModel.TYPE)) {
-            Optional<CredentialModel> existing = UserStorageUtil.userFederatedStorage(session)
+            Optional<CredentialModel> existing = session.userFederatedStorage()
                     .getStoredCredentialsByTypeStream(realm, user.getId(), "CLEAR_TEXT_PASSWORD")
                     .findFirst();
             if (existing.isPresent()) {
                 CredentialModel model = existing.get();
                 model.setType("CLEAR_TEXT_PASSWORD");
                 model.setSecretData("{\"value\":\"" + input.getChallengeResponse() + "\"}");
-                UserStorageUtil.userFederatedStorage(session).updateCredential(realm, user.getId(), model);
+                session.userFederatedStorage().updateCredential(realm, user.getId(), model);
             } else {
                 CredentialModel model = new CredentialModel();
                 model.setType("CLEAR_TEXT_PASSWORD");
                 model.setSecretData("{\"value\":\"" + input.getChallengeResponse() + "\"}");
-                UserStorageUtil.userFederatedStorage(session).createCredential(realm, user.getId(), model);
+                session.userFederatedStorage().createCredential(realm, user.getId(), model);
             }
             return true;
         }
@@ -116,14 +114,14 @@ public class PassThroughFederatedUserStorageProvider implements
 
     @Override
     public void disableCredentialType(RealmModel realm, UserModel user, String credentialType) {
-        UserStorageUtil.userFederatedStorage(session).getStoredCredentialsByTypeStream(realm, user.getId(), "CLEAR_TEXT_PASSWORD")
+        session.userFederatedStorage().getStoredCredentialsByTypeStream(realm, user.getId(), "CLEAR_TEXT_PASSWORD")
                 .collect(Collectors.toList())
-                .forEach(credModel -> UserStorageUtil.userFederatedStorage(session).removeStoredCredential(realm, user.getId(), credModel.getId()));
+                .forEach(credModel -> session.userFederatedStorage().removeStoredCredential(realm, user.getId(), credModel.getId()));
     }
 
     @Override
-    public Stream<String> getDisableableCredentialTypesStream(RealmModel realm, UserModel user) {
-        return CREDENTIAL_TYPES.stream();
+    public Set<String> getDisableableCredentialTypes(RealmModel realm, UserModel user) {
+        return CREDENTIAL_TYPES;
     }
 
     @Override
@@ -132,21 +130,21 @@ public class PassThroughFederatedUserStorageProvider implements
     }
 
     @Override
-    public UserModel getUserById(RealmModel realm, String id) {
+    public UserModel getUserById(String id, RealmModel realm) {
         if (!StorageId.externalId(id).equals(PASSTHROUGH_USERNAME)) return null;
         return getUserModel(realm);
     }
 
     @Override
-    public UserModel getUserByUsername(RealmModel realm, String username) {
+    public UserModel getUserByUsername(String username, RealmModel realm) {
         if  (!PASSTHROUGH_USERNAME.equals(username)) return null;
 
         return getUserModel(realm);
     }
 
     @Override
-    public UserModel getUserByEmail(RealmModel realm, String email) {
-        Optional<StorageId> result = UserStorageUtil.userFederatedStorage(session)
+    public UserModel getUserByEmail(String email, RealmModel realm) {
+        Optional<StorageId> result = session.userFederatedStorage()
                 .getUsersByUserAttributeStream(realm, AbstractUserAdapterFederatedStorage.EMAIL_ATTRIBUTE, email)
                 .map(StorageId::new)
                 .filter(storageId -> Objects.equals(storageId.getExternalId(), PASSTHROUGH_USERNAME))
@@ -164,6 +162,7 @@ public class PassThroughFederatedUserStorageProvider implements
 
             @Override
             public void setUsername(String username) {
+
             }
         };
     }

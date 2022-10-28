@@ -42,8 +42,4 @@ public interface TokenService {
     @Path("/realms/{realm}/protocol/openid-connect/token")
     AccessTokenResponse refreshToken(@PathParam("realm") String realm, MultivaluedMap<String, String> map);
 
-    @POST
-    @Path("/realms/{realm}/protocol/openid-connect/logout")
-    void logout(@PathParam("realm") String realm, MultivaluedMap<String, String> map);
-
 }

@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-servers</artifactId>
-        <version>999-SNAPSHOT</version>
+        <version>12.0.4</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -36,12 +36,13 @@
 
     <modules>
         <module>services</module>
+        <module>jboss</module>
         <module>undertow</module>
     </modules>
     
     <profiles>
         <profile>
-            <id>auth-server-quarkus</id>
+            <id>quarkus</id>
             <modules>
                 <module>quarkus</module>
             </modules>

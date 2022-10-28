@@ -279,8 +279,7 @@ public class FormAuthenticationFlow implements AuthenticationFlow {
     public Response processFlow() {
 
         // KEYCLOAK-16143: Propagate forwarded error messages if present
-        FormMessage forwardedErrorMessage = processor.getAndRemoveForwardedErrorMessage();
-        List<FormMessage> errors = forwardedErrorMessage != null ? Collections.singletonList(forwardedErrorMessage) : null;
+        List<FormMessage> errors = processor.forwardedErrorMessage != null ? Collections.singletonList(processor.forwardedErrorMessage) : null;
 
         return renderForm(null, errors);
     }
