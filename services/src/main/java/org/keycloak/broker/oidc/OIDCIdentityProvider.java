@@ -68,6 +68,7 @@ import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.security.PublicKey;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -370,7 +371,7 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
                 throw new IdentityBrokerException("Mismatch between the subject in the id_token and the subject from the user_info endpoint");
             }
 
-            identity.getContextData().put(BROKER_NONCE_PARAM, idToken.getOtherClaims().get(OIDCLoginProtocol.NONCE_PARAM));
+            //identity.getContextData().put(BROKER_NONCE_PARAM, idToken.getOtherClaims().get(OIDCLoginProtocol.NONCE_PARAM));
             
             if (getConfig().isStoreToken()) {
                 if (tokenResponse.getExpiresIn() > 0) {
@@ -437,10 +438,10 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
                     }
 
                     id = getJsonProperty(userInfo, "sub");
-                    name = getJsonProperty(userInfo, "name");
-                    givenName = getJsonProperty(userInfo, IDToken.GIVEN_NAME);
+                    name = getJsonProperty(userInfo, "adAccount").toLowerCase(Locale.ROOT);
+                    givenName = getJsonProperty(userInfo, "userName");
                     familyName = getJsonProperty(userInfo, IDToken.FAMILY_NAME);
-                    preferredUsername = getUsernameFromUserInfo(userInfo);
+                    preferredUsername = name;
                     email = getJsonProperty(userInfo, "email");
                     AbstractJsonUserAttributeMapper.storeUserProfileForMapper(identity, userInfo, getConfig().getAlias());
                 }
@@ -772,17 +773,18 @@ public class OIDCIdentityProvider extends AbstractOAuth2IdentityProvider<OIDCIde
             // no interacting with the brokered OP, likely doing token exchanges
             return;
         }
-        String nonce = (String) context.getContextData().get(BROKER_NONCE_PARAM);
-
-        if (nonce == null) {
-            return;
-            //throw new IdentityBrokerException("OpenID Provider [" + getConfig().getProviderId() + "] did not return a nonce");
-        }
-
-        String expectedNonce = authenticationSession.getClientNote(BROKER_NONCE_PARAM);
-
-        if (!nonce.equals(expectedNonce)) {
-            throw new ErrorResponseException(OAuthErrorException.INVALID_TOKEN, "invalid nonce", Response.Status.BAD_REQUEST);
-        }
+        return;
+//        String nonce = (String) context.getContextData().get(BROKER_NONCE_PARAM);
+//
+//        if (nonce == null) {
+//            return;
+//            //throw new IdentityBrokerException("OpenID Provider [" + getConfig().getProviderId() + "] did not return a nonce");
+//        }
+//
+//        String expectedNonce = authenticationSession.getClientNote(BROKER_NONCE_PARAM);
+//
+//        if (!nonce.equals(expectedNonce)) {
+//            throw new ErrorResponseException(OAuthErrorException.INVALID_TOKEN, "invalid nonce", Response.Status.BAD_REQUEST);
+//        }
     }
 }

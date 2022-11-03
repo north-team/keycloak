@@ -132,7 +132,7 @@
 
 /* default - IE compatibility */
 .pf-m-primary {
-    color: #FFFFFF;
+    /*color: #FFFFFF;*/
     background-color: #0066CC;
     background-color: var(--pf-global--primary-color--100);
 }
